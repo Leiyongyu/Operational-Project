@@ -42,6 +42,13 @@ public class LingxingPurchasePlanService {
         return callApi(items);
     }
 
+    /**
+     * 直接使用 JSON 数组创建采购计划。
+     */
+    public PurchasePlanCreateResponse createFromJson(List<Map<String, Object>> data) throws Exception {
+        return callApi(data);
+    }
+
     List<Map<String, Object>> parseExcel(InputStream inputStream) throws Exception {
         List<Map<String, Object>> items = new ArrayList<>();
         Workbook wb = new XSSFWorkbook(inputStream);

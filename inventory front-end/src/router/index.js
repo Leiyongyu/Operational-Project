@@ -30,6 +30,11 @@ const router = createRouter({
           component: () => import('@/views/UserManagementView.vue'),
           meta: { requiresAdmin: true },
         },
+        {
+          path: 'purchase-plan/create',
+          name: 'purchasePlanCreate',
+          component: () => import('@/views/PurchasePlanCreateView.vue'),
+        },
       ],
     },
   ],

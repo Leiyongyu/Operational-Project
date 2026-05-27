@@ -8,6 +8,7 @@ import com.asinking.com.openapi.service.LingxingWarehouseInventoryService;
 import com.asinking.com.openapi.service.LingxingWarehouseService;
 import com.asinking.com.openapi.service.LingxingPurchaseOrderService;
 import com.asinking.com.openapi.service.LingxingWarehouseStatementService;
+import com.asinking.com.openapi.service.LingxingPurchasePlanQueryService;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,15 +28,18 @@ public class SyncController {
     private final LingxingWarehouseInventoryService inventoryService;
     private final LingxingWarehouseStatementService statementService;
     private final LingxingPurchaseOrderService purchaseOrderService;
+    private final LingxingPurchasePlanQueryService purchasePlanQueryService;
 
     public SyncController(LingxingWarehouseService warehouseService,
                           LingxingWarehouseInventoryService inventoryService,
                           LingxingWarehouseStatementService statementService,
-                          LingxingPurchaseOrderService purchaseOrderService) {
+                          LingxingPurchaseOrderService purchaseOrderService,
+                          LingxingPurchasePlanQueryService purchasePlanQueryService) {
         this.warehouseService = warehouseService;
         this.inventoryService = inventoryService;
         this.statementService = statementService;
         this.purchaseOrderService = purchaseOrderService;
+        this.purchasePlanQueryService = purchasePlanQueryService;
     }
 
     @PostMapping("/all")
@@ -78,6 +82,20 @@ public class SyncController {
     public Result<Object> syncPurchaseOrderInit() throws Exception {
         LocalDate now = LocalDate.now();
         return Result.ok(purchaseOrderService.sync(now.minusDays(90).toString(), now.toString()));
+    }
+
+    /** 同步采购计划：前一天 */
+    @PostMapping("/purchase-plan")
+    public Result<Object> syncPurchasePlan() throws Exception {
+        LocalDate now = LocalDate.now();
+        return Result.ok(purchasePlanQueryService.sync(now.minusDays(1).toString(), now.minusDays(1).toString()));
+    }
+
+    /** 首次拉取采购计划：近90天 */
+    @PostMapping("/purchase-plan/init")
+    public Result<Object> syncPurchasePlanInit() throws Exception {
+        LocalDate now = LocalDate.now();
+        return Result.ok(purchasePlanQueryService.sync(now.minusDays(90).toString(), now.toString()));
     }
 
     private Map<String, Object> map(Object... kv) {

@@ -7,15 +7,17 @@ public class UserLoginResponse {
     private long expiresAtMillis;
     private String account;
     private String role;
+    private String ownerName;
 
     public UserLoginResponse() {
     }
 
-    public UserLoginResponse(String token, long expiresAtMillis, String account, String role) {
+    public UserLoginResponse(String token, long expiresAtMillis, String account, String role, String ownerName) {
         this.token = token;
         this.expiresAtMillis = expiresAtMillis;
         this.account = account;
         this.role = role;
+        this.ownerName = ownerName;
     }
 
     public String getToken() {
@@ -57,5 +59,8 @@ public class UserLoginResponse {
     public void setRole(String role) {
         this.role = role;
     }
+
+    public String getOwnerName() { return ownerName; }
+    public void setOwnerName(String ownerName) { this.ownerName = ownerName; }
 }
 

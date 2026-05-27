@@ -23,6 +23,7 @@ export async function apiRequest({ path, method = 'GET', query, body, auth = tru
   const requestMethod = method.toUpperCase()
   const url = buildUrl(path, query)
   const headers = {}
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
 
   if (auth) {
     const token = authStore.token
@@ -36,14 +37,14 @@ export async function apiRequest({ path, method = 'GET', query, body, auth = tru
     headers.Authorization = `${tokenType} ${token}`
   }
 
-  if (body !== undefined) {
+  if (body !== undefined && !isFormData) {
     headers['Content-Type'] = 'application/json'
   }
 
   const response = await fetch(url, {
     method: requestMethod,
     headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body),
   })
 
   const responseText = await response.text()

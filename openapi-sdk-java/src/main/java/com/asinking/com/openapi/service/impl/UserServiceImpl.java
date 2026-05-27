@@ -69,7 +69,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserEntity> impleme
         }
 
         JwtTokenService.TokenInfo tokenInfo = jwtTokenService.issue(user);
-        return new UserLoginResponse(tokenInfo.getToken(), tokenInfo.getExpiresAtMillis(), user.getAccount(), user.getRole());
+        return new UserLoginResponse(tokenInfo.getToken(), tokenInfo.getExpiresAtMillis(), user.getAccount(), user.getRole(), user.getOwnerName());
     }
 
     @Override

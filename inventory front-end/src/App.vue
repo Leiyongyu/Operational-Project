@@ -1,9 +1,9 @@
 <script setup>
-import { NConfigProvider, NDialogProvider, NMessageProvider } from 'naive-ui'
+import { NConfigProvider, NDialogProvider, NMessageProvider, zhCN, dateZhCN } from 'naive-ui'
 </script>
 
 <template>
-  <NConfigProvider>
+  <NConfigProvider :locale="zhCN" :date-locale="dateZhCN">
     <NMessageProvider>
       <NDialogProvider>
         <RouterView />

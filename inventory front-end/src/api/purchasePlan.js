@@ -1,29 +1,26 @@
-const BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
-
-function getToken() {
-  try {
-    const raw = localStorage.getItem('inventory-auth-session')
-    if (!raw) return ''
-    const session = JSON.parse(raw)
-    return session.token || ''
-  } catch {
-    return ''
-  }
-}
+import { apiGet, apiPost } from '@/api/request'
 
 export async function uploadPurchasePlan(file) {
   const form = new FormData()
   form.append('file', file)
+  return apiPost('/api/purchase-plan/upload', form)
+}
 
-  const token = getToken()
-  const resp = await fetch(`${BASE}/api/purchase-plan/upload`, {
-    method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    body: form,
-  })
-  const data = await resp.json()
-  if (!resp.ok || (data.code !== 0 && data.code !== 200)) {
-    throw new Error(data.message || '上传失败')
-  }
-  return data.data
+export async function searchSkus(keyword) {
+  const res = await apiGet('/api/purchase-plan/skus', { keyword: keyword || '' })
+  return Array.isArray(res) ? res : []
+}
+
+export async function searchStores(keyword) {
+  const res = await apiGet('/api/purchase-plan/stores', { keyword: keyword || '' })
+  return Array.isArray(res) ? res : []
+}
+
+export async function searchWarehouses(keyword) {
+  const res = await apiGet('/api/purchase-plan/warehouses', { keyword: keyword || '' })
+  return Array.isArray(res) ? res : []
+}
+
+export async function createPurchasePlan(items) {
+  return apiPost('/api/purchase-plan/create', items)
 }

@@ -15,14 +15,17 @@ import {
 } from 'naive-ui'
 import { fetchInventoryOverview, fetchInventoryOverviewWarehouses } from '@/api/inventoryOverview'
 import { syncAll } from '@/api/sync'
-import { uploadProfitReport } from '@/api/profitReport'
-import { uploadPurchasePlan } from '@/api/purchasePlan'
+import { uploadEbaySales } from '@/api/ebaySales'
+import { useRouter } from 'vue-router'
 
 const message = useMessage()
+const router = useRouter()
 
 const loading = ref(false)
 const syncing = ref(false)
 const warehouseLoading = ref(false)
+let loadSeq = 0
+
 const replenishRows = ref([])
 const warehouseOptions = ref([])
 const filters = reactive({
@@ -46,7 +49,9 @@ const filteredRows = computed(() => {
   const filterByWarehouse =
     optionCount > 0 && selectedWarehouses.length > 0 && selectedWarehouses.length < optionCount
 
-  return replenishRows.value.filter((row) => {
+  const seen = new Set()
+  const result = []
+  for (const row of replenishRows.value) {
     if (filterByWarehouse) {
       const warehouses = String(row?.warehouseNames || '')
         .split(',')
@@ -59,13 +64,15 @@ const filteredRows = computed(() => {
             matchWarehouseLabel(warehouses.join(','), String(warehouse)),
           )
         : selectedWarehouses.some((warehouse) => warehouses.includes(warehouse))
-      if (!matched) {
-        return false
-      }
+      if (!matched) continue
     }
 
-    return true
-  })
+    const dedupKey = (row?.warehouseNames || '') + '|' + (row?.sku || '')
+    if (seen.has(dedupKey)) continue
+    seen.add(dedupKey)
+    result.push(row)
+  }
+  return result
 })
 
 function matchWarehouseLabel(warehouseNames, label) {
@@ -361,17 +368,20 @@ async function loadWarehouseOptions() {
 
 async function loadInventoryOverview() {
   loading.value = true
+  const seq = ++loadSeq
 
   try {
     const list = await fetchInventoryOverview({
       sku: filters.sku.trim() || undefined,
     })
+    if (seq !== loadSeq) return
     replenishRows.value = Array.isArray(list) ? list : []
     updatedAt.value = formatDateTime(new Date())
   } catch (error) {
+    if (seq !== loadSeq) return
     message.error(error instanceof Error ? error.message : '加载运营组数据失败')
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 
@@ -403,29 +413,8 @@ async function handleUploadExcel() {
     if (!file) return
     syncing.value = true
     try {
-      const res = await uploadProfitReport(file)
-      message.success(`上传成功，${res.rows} 条数据`)
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : '上传失败')
-    } finally {
-      syncing.value = false
-    }
-  }
-  input.click()
-}
-
-async function handleUploadPurchasePlan() {
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = '.xlsx,.xls'
-  input.onchange = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    syncing.value = true
-    try {
-      const res = await uploadPurchasePlan(file)
-      const ppgSn = res?.ppgSn
-      message.success(`采购计划创建成功${ppgSn ? '，批次号: ' + ppgSn : ''}`)
+      const res = await uploadEbaySales(file)
+      message.success(`上传成功，新增${res.inserted}条，更新${res.updated}条`)
     } catch (err) {
       message.error(err instanceof Error ? err.message : '上传失败')
     } finally {
@@ -472,10 +461,10 @@ function renderWarehouseOption({ node, option, selected }) {
             拉取最新数据
           </NButton>
           <NButton size="small" type="info" :loading="syncing" @click="handleUploadExcel">
-            上传利润报表
+            上传销量报表
           </NButton>
-          <NButton size="small" type="success" :loading="syncing" @click="handleUploadPurchasePlan">
-            上传采购计划
+          <NButton size="small" type="success" @click="router.push({ name: 'purchasePlanCreate' })">
+            创建采购计划
           </NButton>
         </NSpace>
       </template>
@@ -521,7 +510,7 @@ function renderWarehouseOption({ node, option, selected }) {
         :bordered="false"
         :scroll-x="replenishScrollX"
         :max-height="replenishMaxHeight"
-        :row-key="(row) => row.sku"
+        :row-key="(row) => `${String(row?.warehouseNames ?? '').trim()}|${String(row?.sku ?? '').trim()}`"
         :pagination="{ pageSize: 100 }"
       />
     </NCard>

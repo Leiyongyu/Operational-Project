@@ -66,6 +66,7 @@ export const useAuthStore = defineStore('auth', () => {
   const tokenType = computed(() => (session.value ? session.value.tokenType : 'Bearer'))
   const isLoggedIn = computed(() => Boolean(token.value) && !isSessionExpired(session.value))
   const isAdmin = computed(() => normalizeRole(user.value?.role) === 'admin')
+  const ownerName = computed(() => session.value?.user?.ownerName || session.value?.user?.account || '')
 
   async function login(account, password) {
     const payload = {
@@ -127,6 +128,7 @@ export const useAuthStore = defineStore('auth', () => {
           account: accountValue,
           name: accountValue,
           role: roleValue,
+          ownerName: responseData.data?.ownerName || '',
         },
       }
 
@@ -172,6 +174,7 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     isLoggedIn,
     isAdmin,
+    ownerName,
     token,
     tokenType,
     login,

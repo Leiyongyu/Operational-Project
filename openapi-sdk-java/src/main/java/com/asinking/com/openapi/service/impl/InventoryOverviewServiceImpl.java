@@ -29,25 +29,27 @@ public class InventoryOverviewServiceImpl implements InventoryOverviewService {
     private final BrandOwnerService brandOwnerService;
     private final UserService userService;
     private final EbayProductListingService listingService;
-    private final ProfitReportMapper profitReportMapper;
     private final GoodcangGrnListMapper grnListMapper;
     private final GoodcangGrnDetailMapper grnDetailMapper;
     private final GoodcangWarehouseMapper gcWarehouseMapper;
     private final PurchaseOrderMapper purchaseOrderMapper;
     private final WarehouseStatementMapper warehouseStatementMapper;
+    private final EbaySalesMapper ebaySalesMapper;
 
     public InventoryOverviewServiceImpl(LingxingProperties properties, WarehouseService warehouseService,
             WarehouseInventoryDetailService inventoryService, BrandOwnerService brandOwnerService,
             UserService userService, EbayProductListingService listingService,
-            ProfitReportMapper profitReportMapper, GoodcangGrnListMapper grnListMapper,
+            GoodcangGrnListMapper grnListMapper,
             GoodcangGrnDetailMapper grnDetailMapper, GoodcangWarehouseMapper gcWarehouseMapper,
-            PurchaseOrderMapper purchaseOrderMapper, WarehouseStatementMapper warehouseStatementMapper) {
+            PurchaseOrderMapper purchaseOrderMapper, WarehouseStatementMapper warehouseStatementMapper,
+            EbaySalesMapper ebaySalesMapper) {
         this.properties = properties; this.warehouseService = warehouseService;
         this.inventoryService = inventoryService; this.brandOwnerService = brandOwnerService;
         this.userService = userService; this.listingService = listingService;
-        this.profitReportMapper = profitReportMapper; this.grnListMapper = grnListMapper;
+        this.grnListMapper = grnListMapper;
         this.grnDetailMapper = grnDetailMapper; this.gcWarehouseMapper = gcWarehouseMapper;
         this.purchaseOrderMapper = purchaseOrderMapper; this.warehouseStatementMapper = warehouseStatementMapper;
+        this.ebaySalesMapper = ebaySalesMapper;
     }
 
     @Override
@@ -92,23 +94,6 @@ public class InventoryOverviewServiceImpl implements InventoryOverviewService {
             if (wh.getType() != null && wh.getType() == 3) { inv.overseasSellable += s; inv.overseasOnway += o; }
             else { inv.localSellable += s; inv.localOnway += o; }
         }
-
-        // ==== 3. 利润：profit_report 近30天 ====
-        Map<String, BigDecimal> profitSumMap = new LinkedHashMap<>(), profitAvgMap = new LinkedHashMap<>();
-        Map<String, Integer> profitCountMap = new LinkedHashMap<>();
-        LocalDate d30 = LocalDate.now().minusDays(30);
-        for (ProfitReportEntity pr : profitReportMapper.selectList(null)) {
-            String msku = pr.getMsku() != null ? pr.getMsku().trim() : "";
-            if (msku.isEmpty() || pr.getShipTime() == null || pr.getShipTime().isEmpty()) continue;
-            LocalDate sd = parseDate(pr.getShipTime());
-            if (sd == null || sd.isBefore(d30)) continue;
-            String site = currencyToSite(pr.getCurrencyCode() != null ? pr.getCurrencyCode().trim().toUpperCase() : "");
-            if (site.isEmpty()) continue;
-            String key = extractBaseSku(msku) + "|" + site;
-            if (pr.getGrossMargin() != null) { profitSumMap.merge(key, pr.getGrossMargin(), BigDecimal::add); profitCountMap.merge(key, 1, Integer::sum); }
-        }
-        for (String k : profitSumMap.keySet())
-            profitAvgMap.put(k, profitSumMap.get(k).divide(BigDecimal.valueOf(profitCountMap.getOrDefault(k, 1)), 6, RoundingMode.HALF_UP));
 
         // ==== 4. 谷仓出库时间 ====
         Map<String, String> createTimeMap = new LinkedHashMap<>();
@@ -194,6 +179,34 @@ public class InventoryOverviewServiceImpl implements InventoryOverviewService {
             purchasePendingMap.merge(key, 1, Integer::sum);
         }
 
+        // ============================================================================
+        // ===== Step 5-extra. eBay销量：ebay_sales，按 (站点, 中间码) 汇总 =====
+        // ============================================================================
+        // 货币 → 站点：EUR→德国 GBP→英国 USD→美国
+        // SKU匹配：取中间码 extractMiddleCode
+        Map<String, Integer> sales7d = new LinkedHashMap<>(), sales30d = new LinkedHashMap<>(), sales90d = new LinkedHashMap<>();
+        Map<String, Map<String, Integer>> monthlySalesMap = new LinkedHashMap<>(); // key → (month → sum)
+        LocalDate today = LocalDate.now();
+        for (EbaySalesEntity s : ebaySalesMapper.selectList(null)) {
+            String sku = s.getSku(), currency = s.getCurrency();
+            if (sku == null || sku.isEmpty() || currency == null || currency.isEmpty()) continue;
+            String mid = extractMiddleCode(sku);
+            if (mid.isEmpty()) continue;
+            String site = currencyToSite(currency.toUpperCase());
+            if (site.isEmpty()) continue;
+            LocalDate pd = s.getPaymentTime() != null ? s.getPaymentTime().toLocalDate() : null;
+            if (pd == null) continue;
+            int qty = s.getQuantity() != null ? s.getQuantity() : 0;
+            String key = site + "|" + mid;
+
+            if (!pd.isBefore(today.minusDays(7))) sales7d.merge(key, qty, Integer::sum);
+            if (!pd.isBefore(today.minusDays(30))) sales30d.merge(key, qty, Integer::sum);
+            if (!pd.isBefore(today.minusDays(90))) sales90d.merge(key, qty, Integer::sum);
+
+            String monthKey = pd.getYear() + "-" + String.format("%02d", pd.getMonthValue());
+            monthlySalesMap.computeIfAbsent(key, k -> new LinkedHashMap<>()).merge(monthKey, qty, Integer::sum);
+        }
+
         // ==== 6. 品牌归属 ====
         Map<String, String> ownerByBrand = brandOwnerService.list().stream().collect(Collectors.toMap(
                 e -> StringUtils.hasText(e.getBrandCode()) ? e.getBrandCode().trim().toUpperCase() : "",
@@ -215,10 +228,13 @@ public class InventoryOverviewServiceImpl implements InventoryOverviewService {
                 item.setLocalOnway(inv.localOnway); item.setLocalSellable(inv.localSellable);
                 item.setLockNum(inv.lockNum);
                 item.setTotalInventory(inv.overseasSellable + inv.overseasOnway + inv.localSellable + inv.localOnway);
-                item.setLast7DaysSales(0); item.setLast30DaysSales(0); item.setLast90DaysSales(0);
-
-                BigDecimal m = profitAvgMap.get(baseSku + "|" + inv.siteLabel);
-                item.setLast30DaysProfit(m != null ? m.multiply(BigDecimal.valueOf(100)) : null);
+                String salesKey = inv.siteLabel + "|" + extractMiddleCode(baseSku);
+                item.setLast7DaysSales(sales7d.getOrDefault(salesKey, 0));
+                item.setLast30DaysSales(sales30d.getOrDefault(salesKey, 0));
+                item.setLast90DaysSales(sales90d.getOrDefault(salesKey, 0));
+                item.setMaxMonthlySales(monthlySalesMap.containsKey(salesKey)
+                        ? monthlySalesMap.get(salesKey).values().stream().max(Integer::compareTo).orElse(0)
+                        : null);
 
                 String mid = extractMiddleCode(baseSku);
                 if (!mid.isEmpty() && !inv.siteLabel.isEmpty()) {
@@ -260,12 +276,14 @@ public class InventoryOverviewServiceImpl implements InventoryOverviewService {
         if (!"admin".equalsIgnoreCase(role != null ? role.trim() : "") && StringUtils.hasText(userId))
             brands = loadUserBrandCodes(userId);
         final Set<String> fb = brands;
-        return all.stream().filter(item -> {
+        List<InventoryOverviewItem> filtered = all.stream().filter(item -> {
             if (kw != null && (item.getSku() == null || !item.getSku().toLowerCase().contains(kw))) return false;
             if (wh != null && !wh.equals(item.getWarehouseNames())) return false;
             if (fb != null && !fb.isEmpty() && !matchesUserBrand(item.getSku(), fb)) return false;
             return true;
         }).collect(Collectors.toList());
+
+        return filtered;
     }
 
     @Override
@@ -314,7 +332,7 @@ public class InventoryOverviewServiceImpl implements InventoryOverviewService {
     private LocalDate parseDate(String s) { if (!StringUtils.hasText(s)) return null; try { return LocalDate.parse(s.substring(0, 10)); } catch (Exception e) { return null; } }
     private static final Map<String, String> SITE_NAME_MAP = new HashMap<>();
     static { SITE_NAME_MAP.put("ebay汽配", "美国"); SITE_NAME_MAP.put("法国", "德国"); }
-    private String mapSiteName(String n) { return StringUtils.hasText(n) ? SITE_NAME_MAP.getOrDefault(n, n) : ""; }
+    private String mapSiteName(String n) { String t = n != null ? n.trim() : ""; return StringUtils.hasText(t) ? SITE_NAME_MAP.getOrDefault(t, t) : ""; }
     private static final Map<String, String> CURRENCY_TO_SITE = new HashMap<>();
     static { CURRENCY_TO_SITE.put("USD", "美国"); CURRENCY_TO_SITE.put("GBP", "英国"); CURRENCY_TO_SITE.put("EUR", "德国"); }
     private String currencyToSite(String c) { return CURRENCY_TO_SITE.getOrDefault(c, ""); }
