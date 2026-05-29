@@ -10,5 +10,6 @@ public interface PurchasePlanSubmitService extends IService<PurchasePlanSubmitEn
 
     int batchSubmit(List<PurchasePlanSubmitEntity> items);
 
-    PageResult<PurchasePlanSubmitEntity> page(long page, long size, String account, String role, String ownerName);
+    PageResult<PurchasePlanSubmitEntity> page(long page, long size, String account, String role, String ownerName,
+                                              String sku, String creator);
 }

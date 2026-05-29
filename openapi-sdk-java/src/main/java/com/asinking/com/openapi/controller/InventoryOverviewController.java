@@ -6,6 +6,7 @@ import com.asinking.com.openapi.dto.response.WarehouseOptionItem;
 import com.asinking.com.openapi.interceptor.JwtAuthInterceptor;
 import com.asinking.com.openapi.service.InventoryOverviewService;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -46,5 +47,12 @@ public class InventoryOverviewController {
     @GetMapping("/warehouses")
     public Result<List<WarehouseOptionItem>> warehouses() {
         return Result.ok(overviewService.getWarehouseOptions());
+    }
+
+    /** 仅从本地DB重算快照，不拉取外部接口 */
+    @PostMapping("/refresh-snapshot")
+    public Result<String> refreshSnapshot() {
+        overviewService.refreshSnapshot();
+        return Result.ok("ok");
     }
 }

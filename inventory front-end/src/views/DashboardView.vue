@@ -13,7 +13,7 @@ import {
   NTag,
   useMessage,
 } from 'naive-ui'
-import { fetchInventoryOverview, fetchInventoryOverviewWarehouses } from '@/api/inventoryOverview'
+import { fetchInventoryOverview, fetchInventoryOverviewWarehouses, refreshSnapshot } from '@/api/inventoryOverview'
 import { syncAll } from '@/api/sync'
 import { uploadEbaySales } from '@/api/ebaySales'
 import { useAuthStore } from '@/stores/auth'
@@ -26,6 +26,7 @@ const isAdmin = computed(() => authStore.isAdmin)
 const loading = ref(false)
 const syncing = ref(false)
 const uploading = ref(false)
+const recalculating = ref(false)
 const warehouseLoading = ref(false)
 let loadSeq = 0
 
@@ -53,8 +54,9 @@ function renderRatioTag(value) {
   if (value === undefined || value === null || value === '') {
     return ''
   }
-
-  return String(value)
+  const num = Number(value)
+  if (!Number.isFinite(num)) return ''
+  return num.toFixed(1).replace(/\.0$/, '') + '%'
 }
 
 const replenishColumns = [
@@ -332,6 +334,19 @@ onMounted(() => {
   loadInventoryOverview()
 })
 
+async function handleRecalc() {
+  recalculating.value = true
+  try {
+    await refreshSnapshot()
+    await loadInventoryOverview()
+    message.success('重算完成')
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '重算失败')
+  } finally {
+    recalculating.value = false
+  }
+}
+
 async function handleSyncAll() {
   syncing.value = true
   try {
@@ -398,6 +413,9 @@ function renderWarehouseOption({ node, option, selected }) {
           <NTag size="small" :bordered="false">共 {{ filteredRows.length }} 条</NTag>
           <NButton size="small" secondary :loading="loading" @click="loadInventoryOverview">
             刷新
+          </NButton>
+          <NButton size="small" type="info" :loading="recalculating" @click="handleRecalc">
+            重算数据
           </NButton>
           <NButton v-if="isAdmin" size="small" type="warning" :loading="syncing" @click="handleSyncAll">
             拉取最新数据

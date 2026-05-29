@@ -9,6 +9,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -34,10 +35,21 @@ public class PurchasePlanSubmitServiceImpl extends ServiceImpl<PurchasePlanSubmi
     }
 
     @Override
-    public PageResult<PurchasePlanSubmitEntity> page(long page, long size, String account, String role, String ownerName) {
+    public PageResult<PurchasePlanSubmitEntity> page(long page, long size, String account, String role, String ownerName,
+                                                     String sku, String creator) {
         long p = page <= 0 ? 1 : page;
         long s = size <= 0 ? 10 : Math.min(size, 200);
         LambdaQueryWrapper<PurchasePlanSubmitEntity> wrapper = new LambdaQueryWrapper<>();
+
+        // SKU 模糊搜索
+        if (StringUtils.hasText(sku)) {
+            wrapper.like(PurchasePlanSubmitEntity::getSku, sku.trim());
+        }
+        // 创建人模糊搜索
+        if (StringUtils.hasText(creator)) {
+            wrapper.and(w -> w.like(PurchasePlanSubmitEntity::getCreatorOwnerName, creator.trim())
+                    .or().like(PurchasePlanSubmitEntity::getCreatorAccount, creator.trim()));
+        }
 
         if (!"admin".equalsIgnoreCase(role != null ? role.trim() : "")) {
             // 查 team 表：当前用户是否是组长

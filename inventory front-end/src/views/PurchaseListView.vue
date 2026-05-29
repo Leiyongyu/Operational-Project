@@ -19,7 +19,19 @@ const total = ref(0)
 const checkedRowKeys = ref([])
 const canApprove = ref(false)
 
-const query = reactive({ page: 1, size: 10 })
+const query = reactive({ page: 1, size: 10, sku: '', creator: '' })
+
+function handleSearch() {
+  query.page = 1
+  loadData()
+}
+
+function handleReset() {
+  query.sku = ''
+  query.creator = ''
+  query.page = 1
+  loadData()
+}
 
 async function handleExport() {
   try {
@@ -47,7 +59,11 @@ function formatTime(v) {
 async function loadData() {
   loading.value = true
   try {
-    const result = await fetchSubmitPage({ page: query.page, size: query.size })
+    const result = await fetchSubmitPage({
+      page: query.page, size: query.size,
+      sku: query.sku.trim() || undefined,
+      creator: query.creator.trim() || undefined,
+    })
     records.value = result?.records || []
     total.value = Number(result?.total || 0)
   } catch (e) {
@@ -222,6 +238,24 @@ onActivated(() => { checkPermission(); loadData() })
         <NButton type="primary" @click="router.push({ name: 'purchasePlanCreate' })">创建采购计划</NButton>
       </NSpace>
     </div>
+
+    <!-- 搜索栏 -->
+    <NCard size="small" class="dashboard-card" style="margin-bottom:16px">
+      <NForm inline :model="query" @keyup.enter="handleSearch">
+        <NFormItem label="SKU">
+          <NInput v-model:value="query.sku" clearable placeholder="输入SKU模糊搜索" style="width:200px" />
+        </NFormItem>
+        <NFormItem label="创建人">
+          <NInput v-model:value="query.creator" clearable placeholder="输入创建人" style="width:160px" />
+        </NFormItem>
+        <NFormItem>
+          <NSpace size="small">
+            <NButton type="primary" secondary @click="handleSearch">查询</NButton>
+            <NButton @click="handleReset">重置</NButton>
+          </NSpace>
+        </NFormItem>
+      </NForm>
+    </NCard>
 
     <NCard size="small" class="dashboard-card" v-if="canApprove && checkedRowKeys.length > 0">
       <NSpace align="center" size="small">

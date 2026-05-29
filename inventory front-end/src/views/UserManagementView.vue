@@ -1,5 +1,5 @@
 <script setup>
-import { h, onMounted, reactive, ref } from 'vue'
+import { h, onActivated, onMounted, reactive, ref } from 'vue'
 import {
   NButton,
   NCard,
@@ -127,11 +127,14 @@ async function loadUsers() {
   loading.value = true
 
   try {
-    const pageResult = await fetchUsersPage({
-      page: query.page,
-      size: query.size,
-      account: query.account.trim() || undefined,
-    })
+    const [pageResult] = await Promise.all([
+      fetchUsersPage({
+        page: query.page,
+        size: query.size,
+        account: query.account.trim() || undefined,
+      }),
+      loadTeamMap(),
+    ])
 
     users.value = pageResult?.records || []
     total.value = Number(pageResult?.total || 0)
@@ -543,10 +546,8 @@ async function loadTeamMap() {
   catch { teamMap.value = {} }
 }
 
-onMounted(() => {
-  loadUsers()
-  loadTeamMap()
-})
+onMounted(() => loadUsers())
+onActivated(() => loadUsers())
 </script>
 
 <template>

@@ -389,7 +389,8 @@ public class InventoryOverviewServiceImpl implements InventoryOverviewService {
                 if (cycle != null && od != null) {
                     BigDecimal avg = BigDecimal.valueOf(item.getLast90DaysSales()).divide(BigDecimal.valueOf(3), 4, RoundingMode.HALF_UP);
                     // 采购数量 = 近3月均销量 × (采购周期 + 出库天数) / 30
-                    item.setPurchaseQuantity(avg.multiply(BigDecimal.valueOf((cycle + od) / 30.0)));
+                    item.setPurchaseQuantity(avg.multiply(BigDecimal.valueOf((cycle + od) / 30.0))
+                            .setScale(0, RoundingMode.HALF_UP));
                 }
 
                 Integer mm = item.getMaxMonthlySales();
@@ -431,7 +432,8 @@ public class InventoryOverviewServiceImpl implements InventoryOverviewService {
         return l;
     }
     private BigDecimal divide(int n, int d) {
-        return d == 0 ? BigDecimal.ZERO : BigDecimal.valueOf(n).divide(BigDecimal.valueOf(d), 4, RoundingMode.HALF_UP);
+        if (d == 0) return BigDecimal.ZERO;
+        return BigDecimal.valueOf(n).divide(BigDecimal.valueOf(d), 4, RoundingMode.HALF_UP);
     }
     private String matchOwner(String sku, Map<String, String> ob) {
         if (!StringUtils.hasText(sku)) return "";

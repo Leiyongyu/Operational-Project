@@ -56,16 +56,18 @@ public class PurchasePlanSubmitController {
         return Result.ok(service.batchSubmit(items));
     }
 
-    /** 分页查询 */
+    /** 分页查询，支持 SKU 和创建人模糊搜索 */
     @GetMapping
     public Result<PageResult<PurchasePlanSubmitEntity>> page(
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "10") long size,
+            @RequestParam(required = false) String sku,
+            @RequestParam(required = false) String creator,
             HttpServletRequest request) {
         String account = String.valueOf(request.getAttribute(JwtAuthInterceptor.ATTR_ACCOUNT));
         String role = String.valueOf(request.getAttribute(JwtAuthInterceptor.ATTR_ROLE));
         String ownerName = resolveOwnerName(account);
-        return Result.ok(service.page(page, size, account, role, ownerName));
+        return Result.ok(service.page(page, size, account, role, ownerName, sku, creator));
     }
 
     /** 更新采购计划（仅 quantity_plan） */

@@ -1,8 +1,8 @@
 import { apiDelete, apiGet, apiPost, apiPut } from '@/api/request'
 
 /** 分页查询采购计划提交记录 */
-export function fetchSubmitPage({ page, size }) {
-  return apiGet('/api/purchase-plan-submit', { page, size })
+export function fetchSubmitPage({ page, size, sku, creator }) {
+  return apiGet('/api/purchase-plan-submit', { page, size, sku, creator })
 }
 
 /** 批量提交采购计划（仅保存到库，不调领星） */
