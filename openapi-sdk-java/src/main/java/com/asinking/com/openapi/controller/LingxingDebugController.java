@@ -24,6 +24,7 @@ public class LingxingDebugController {
     private final LingxingEbayService ebayService;
     private final LingxingPlatformOrderService platformOrderService;
 
+    /** 构造器注入领星调试所需的各类服务。 */
     public LingxingDebugController(LingxingAuthService authService, LingxingShopService shopService,
                                    LingxingEbayService ebayService, LingxingPlatformOrderService platformOrderService) {
         this.authService = authService;

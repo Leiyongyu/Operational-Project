@@ -22,6 +22,7 @@ public class ProfitReportUploadController {
 
     private final ProfitReportMapper mapper;
 
+    /** 构造器注入利润报表 Mapper。 */
     public ProfitReportUploadController(ProfitReportMapper mapper) {
         this.mapper = mapper;
     }
@@ -127,11 +128,13 @@ public class ProfitReportUploadController {
         return Result.ok(result);
     }
 
+    /** 构建 upsert 唯一键 (msku|shipTime|storeName|countryCode)。 */
     private String buildKey(String msku, String shipTime, String storeName, String countryCode) {
         return (msku != null ? msku : "") + "|" + (shipTime != null ? shipTime : "") + "|"
              + (storeName != null ? storeName : "") + "|" + (countryCode != null ? countryCode : "");
     }
 
+    /** 从 Excel 单元格读取字符串值。 */
     private String getStringValue(Cell c) {
         if (c == null) return null;
         switch (c.getCellType()) {
@@ -145,16 +148,19 @@ public class ProfitReportUploadController {
         }
     }
 
+    /** 安全解析整数字符串，解析失败返回 0。 */
     private int parseInt(String v) {
         if (v == null || v.isEmpty()) return 0;
         try { return (int) Double.parseDouble(v.replace(",", "")); } catch (Exception e) { return 0; }
     }
 
+    /** 安全解析数字字符串为 BigDecimal，解析失败返回 ZERO。 */
     private BigDecimal parseDecimal(String v) {
         if (v == null || v.isEmpty()) return BigDecimal.ZERO;
         try { return new BigDecimal(v.replace(",", "").replace("%", "")); } catch (Exception e) { return BigDecimal.ZERO; }
     }
 
+    /** 安全解析百分比字符串（如 "15%" -> 0.15），解析失败返回 ZERO。 */
     private BigDecimal parsePercent(String v) {
         if (v == null || v.isEmpty()) return BigDecimal.ZERO;
         try {
@@ -163,5 +169,6 @@ public class ProfitReportUploadController {
         } catch (Exception e) { return BigDecimal.ZERO; }
     }
 
+    /** 生成不带横线的 32 位随机 UUID。 */
     private String uuid32() { return UUID.randomUUID().toString().replace("-", ""); }
 }

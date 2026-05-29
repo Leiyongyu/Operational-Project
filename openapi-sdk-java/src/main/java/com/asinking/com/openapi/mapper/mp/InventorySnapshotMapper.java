@@ -1,11 +1,9 @@
 package com.asinking.com.openapi.mapper.mp;
 
-import com.asinking.com.openapi.entity.UserEntity;
+import com.asinking.com.openapi.entity.InventorySnapshotEntity;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Mapper;
 
-/** Mapper for user operations. */
 @Mapper
-public interface UserMapper extends BaseMapper<UserEntity> {
-    
+public interface InventorySnapshotMapper extends BaseMapper<InventorySnapshotEntity> {
 }

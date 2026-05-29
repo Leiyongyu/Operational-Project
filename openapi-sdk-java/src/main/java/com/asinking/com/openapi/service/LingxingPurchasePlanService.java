@@ -18,6 +18,9 @@ import org.slf4j.LoggerFactory;
 import java.io.InputStream;
 import java.util.*;
 
+/**
+ * 领星采购计划创建服务，支持 Excel 上传和 JSON 两种方式创建采购计划。
+ */
 @Service
 public class LingxingPurchasePlanService {
     private static final Logger LOG = LoggerFactory.getLogger(LingxingPurchasePlanService.class);
@@ -49,6 +52,7 @@ public class LingxingPurchasePlanService {
         return callApi(data);
     }
 
+    /** 解析采购计划 Excel 文件，返回行数据列表。 */
     List<Map<String, Object>> parseExcel(InputStream inputStream) throws Exception {
         List<Map<String, Object>> items = new ArrayList<>();
         Workbook wb = new XSSFWorkbook(inputStream);
@@ -81,7 +85,23 @@ public class LingxingPurchasePlanService {
         return items;
     }
 
+    /** 调用领星创建采购计划 API，校验必填字段。 */
     private PurchasePlanCreateResponse callApi(List<Map<String, Object>> data) throws Exception {
+        // 必填字段校验：sku、wid、quantity_plan、remark
+        if (data == null || data.isEmpty()) throw new IllegalArgumentException("采购计划数据不能为空");
+        for (int i = 0; i < data.size(); i++) {
+            Map<String, Object> item = data.get(i);
+            int row = i + 1;
+            if (item.get("sku") == null || String.valueOf(item.get("sku")).trim().isEmpty())
+                throw new IllegalArgumentException("第" + row + "行 sku 不能为空");
+            if (item.get("wid") == null)
+                throw new IllegalArgumentException("第" + row + "行 仓库 不能为空");
+            if (item.get("quantity_plan") == null)
+                throw new IllegalArgumentException("第" + row + "行 计划采购数量 不能为空");
+            if (item.get("remark") == null || String.valueOf(item.get("remark")).trim().isEmpty())
+                throw new IllegalArgumentException("第" + row + "行 产品备注 不能为空");
+        }
+
         Map<String, Object> qp = new LinkedHashMap<>();
         qp.put("timestamp", String.valueOf(System.currentTimeMillis() / 1000));
         qp.put("access_token", authService.getAccessToken());
@@ -122,6 +142,7 @@ public class LingxingPurchasePlanService {
         return objectMapper.convertValue(dataObj, PurchasePlanCreateResponse.class);
     }
 
+    /** 读取单元格字符串值。 */
     private String strVal(Row row, int col) {
         Cell c = row.getCell(col);
         if (c == null) return "";
@@ -136,6 +157,7 @@ public class LingxingPurchasePlanService {
         }
     }
 
+    /** 读取单元格整数值，空或异常返回 0。 */
     private int intVal(Row row, int col) {
         Cell c = row.getCell(col);
         if (c == null) return 0;
@@ -147,6 +169,7 @@ public class LingxingPurchasePlanService {
         }
     }
 
+    /** 读取单元格整数值，空或异常返回 null。 */
     private Integer intOrNull(Row row, int col) {
         Cell c = row.getCell(col);
         if (c == null) return null;
@@ -159,10 +182,12 @@ public class LingxingPurchasePlanService {
         }
     }
 
+    /** 仅当值非空时放入 map。 */
     private void putIfNotEmpty(Map<String, Object> m, String k, String v) {
         if (v != null && !v.isEmpty()) m.put(k, v);
     }
 
+    /** 仅当值非 null 时放入 map。 */
     private void putIntIfNotNull(Map<String, Object> m, String k, Integer v) {
         if (v != null) m.put(k, v);
     }

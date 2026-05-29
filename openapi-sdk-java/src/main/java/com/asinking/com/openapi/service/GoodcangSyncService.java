@@ -23,6 +23,7 @@ public class GoodcangSyncService {
     private final GoodcangGrnDetailMapper grnDetailMapper;
     private final GoodcangWarehouseMapper warehouseMapper;
 
+    /** 构造同步服务，注入客户端及各 Mapper */
     public GoodcangSyncService(GoodcangClient client,
                                GoodcangGrnListMapper gLMapper,
                                GoodcangGrnDetailMapper gDMapper,
@@ -33,6 +34,7 @@ public class GoodcangSyncService {
         this.warehouseMapper = whMapper;
     }
 
+    /** 同步入库单列表及明细，按日期范围分页拉取并 upsert */
     @Transactional
     public SaleStatSyncResponse syncGrn(String from, String to) throws Exception {
         int totalList = 0, totalDetail = 0;
@@ -120,6 +122,7 @@ public class GoodcangSyncService {
         try { return LocalDateTime.parse(s, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")); }
         catch (Exception e) { return null; }
     }
+    /** 同步仓库信息，清空后全量重写并模糊匹配 wid */
     @Transactional
     public SaleStatSyncResponse syncWarehouses() throws Exception {
         Map<String, Object> resp = client.getWarehouses();

@@ -28,6 +28,7 @@ public class WarehouseInventoryDetailController {
     private final LingxingWarehouseInventoryService lingxingWarehouseInventoryService;
     private final WarehouseInventoryDetailService warehouseInventoryDetailService;
 
+    /** 构造器注入领星库存同步服务和本地库存明细查询服务。 */
     public WarehouseInventoryDetailController(LingxingWarehouseInventoryService lingxingWarehouseInventoryService,
                                              WarehouseInventoryDetailService warehouseInventoryDetailService) {
         this.lingxingWarehouseInventoryService = lingxingWarehouseInventoryService;

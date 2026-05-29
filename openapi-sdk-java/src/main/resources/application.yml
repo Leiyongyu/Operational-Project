@@ -42,13 +42,6 @@ goodcang:
   app-token: "a1bc2f4455c6ccb0e9a67b2ce984a3c5"
   app-key: "b99a3ce835ef9711ad3c3d451b6f9815"
 
-feishu:
-  endpoint: "http://8.137.177.25/feishu-proxy"
-  app-id: "cli_aa9bb2127a399bc9"
-  app-secret: "Ju4K8shwXaiB79QhUMKSdeZnZwq0di0g"
-  app-token: "JPxQb2riHagsafsX7QVc6rSjn8f"
-  table-id: "tblXybb1irZdGxGG"
-
 jwt:
   secret: "dev-secret-change-me-please-32chars!!"
   issuer: "JMH_Middle_Platform_System"

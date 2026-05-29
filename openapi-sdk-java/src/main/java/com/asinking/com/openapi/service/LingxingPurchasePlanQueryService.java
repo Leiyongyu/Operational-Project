@@ -14,6 +14,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 
+/**
+ * 领星采购计划查询同步服务，按时间范围分页拉取采购计划并增量 upsert 写入 purchase_plan 表。
+ */
 @Service
 public class LingxingPurchasePlanQueryService {
     private static final String PATH = "erp/sc/routing/data/local_inventory/getPurchasePlans";
@@ -31,6 +34,7 @@ public class LingxingPurchasePlanQueryService {
         this.mapper = mapper;
     }
 
+    /** 按时间范围分页拉取采购计划，增量 upsert 到数据库。 */
     @Transactional
     public SaleStatSyncResponse sync(String startDate, String endDate) throws Exception {
         Map<String, PurchasePlanEntity> existing = new HashMap<>();
@@ -101,6 +105,7 @@ public class LingxingPurchasePlanQueryService {
         return new SaleStatSyncResponse(inserted + updated, inserted + updated, Collections.emptyList());
     }
 
+    /** 调用领星采购计划列表 API。 */
     private Object callApi(String startDate, String endDate, int offset, int length) throws Exception {
         Map<String, Object> qp = new LinkedHashMap<>();
         qp.put("timestamp", String.valueOf(System.currentTimeMillis() / 1000));
@@ -125,8 +130,12 @@ public class LingxingPurchasePlanQueryService {
                 .build()).readEntity(Object.class);
     }
 
+    /** 安全转换为字符串，null 返回空串。 */
     private String str(Object v) { return v != null ? String.valueOf(v) : ""; }
+    /** 安全转换为 int，null 或异常返回 0。 */
     private int intVal(Object v) { if (v == null) return 0; try { return Integer.parseInt(String.valueOf(v)); } catch (Exception e) { return 0; } }
+    /** 对象转 JSON 字符串，null 返回 null。 */
     private String toJson(Object v) { return v != null ? JSON.toJSONString(v) : null; }
+    /** 生成 32 位 UUID（去掉横线）。 */
     private String uuid32() { return UUID.randomUUID().toString().replace("-", ""); }
 }

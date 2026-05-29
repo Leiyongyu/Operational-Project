@@ -50,8 +50,8 @@ function handleMenuUpdate(key) {
     router.push({ name: 'dashboard' })
   } else if (key === '/users') {
     router.push({ name: 'users' })
-  } else if (key === '/purchase-plan/create') {
-    router.push({ name: 'purchasePlanCreate' })
+  } else if (key === '/purchases') {
+    router.push({ name: 'purchases' })
   } else if (key === '/brand-owners') {
     router.push({ name: 'brandOwners' })
   }
@@ -102,7 +102,7 @@ const menuWithIcons = computed(() => {
     items.push({ label: '用户管理', key: '/users', icon: renderMenuIcon('users') })
     items.push({ label: '品牌负责人', key: '/brand-owners', icon: renderMenuIcon('brand') })
   }
-  items.push({ label: '创建采购计划', key: '/purchase-plan/create', icon: renderMenuIcon('purchase') })
+  items.push({ label: '采购', key: '/purchases', icon: renderMenuIcon('purchase') })
   return items
 })
 
@@ -170,7 +170,11 @@ async function handleLogout() {
       </NLayoutHeader>
 
       <NLayoutContent content-style="padding: 24px; background: #f0f2f5;">
-        <RouterView />
+        <RouterView v-slot="{ Component }">
+          <KeepAlive>
+            <component :is="Component" />
+          </KeepAlive>
+        </RouterView>
       </NLayoutContent>
     </NLayout>
   </NLayout>

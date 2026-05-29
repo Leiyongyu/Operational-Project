@@ -51,6 +51,7 @@ public class LingxingShopService {
         this.ebayShopListService = ebayShopListService;
     }
 
+    /** 分页拉取启用的 eBay 店铺并增量 upsert 到数据库。 */
     // platform_code=10003 是 eBay，status=1 启用中，is_sync=1 已同步
     @Transactional
     public EbayShopSyncResult getActiveEbayShops(int offset, int length) throws Exception {
@@ -92,12 +93,14 @@ public class LingxingShopService {
         return new EbayShopSyncResult(stats.inserted, stats.updated, stats.total, remote);
     }
 
+    /** 构建 HTTP 请求配置。 */
     private Config buildConfig() {
         return new Config()
                 .withConnectionTimeout(properties.getConnectTimeout())
                 .withReadTimeout(properties.getReadTimeout());
     }
 
+    /** 将 API 返回的 eBay 店铺列表增量 upsert 到 ebay_shop_list 表。 */
     private SyncStats upsertEbayShopList(Object remoteResponse) {
         List<Map<String, Object>> shops = extractShopList(remoteResponse);
         if (shops.isEmpty()) {
@@ -157,6 +160,7 @@ public class LingxingShopService {
         return new SyncStats(inserted, updated, toSave.size());
     }
 
+    /** 从 API 响应中提取店铺列表。 */
     private List<Map<String, Object>> extractShopList(Object remoteResponse) {
         if (remoteResponse == null) {
             return Collections.emptyList();
@@ -180,6 +184,7 @@ public class LingxingShopService {
                 .collect(Collectors.toList());
     }
 
+    /** 按多个 key 依次取值，返回第一个非空文本。 */
     private String getString(Map<String, Object> map, String... keys) {
         for (String key : keys) {
             Object val = map.get(key);
@@ -194,11 +199,13 @@ public class LingxingShopService {
         return null;
     }
 
+    /** 按多个 key 取值，取不到则返回默认值。 */
     private String getStringOrDefault(Map<String, Object> map, String defaultValue, String... keys) {
         String value = getString(map, keys);
         return StringUtils.hasText(value) ? value : (defaultValue == null ? "" : defaultValue);
     }
 
+    /** 按多个 key 取整数值，取不到则返回默认值。 */
     private Integer getIntOrDefault(Map<String, Object> map, Integer defaultValue, String... keys) {
         String value = getString(map, keys);
         if (!StringUtils.hasText(value)) {
@@ -211,6 +218,7 @@ public class LingxingShopService {
         }
     }
 
+    /** 生成 32 位 UUID（去掉横线）。 */
     private String uuid32() {
         return UUID.randomUUID().toString().replace("-", "");
     }

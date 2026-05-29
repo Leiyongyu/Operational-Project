@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Mapper;
 
 import org.apache.ibatis.annotations.Update;
 
+/** Mapper for Goodcang warehouse operations. */
 @Mapper
 public interface GoodcangWarehouseMapper extends BaseMapper<GoodcangWarehouseEntity> {
 

@@ -58,6 +58,7 @@ public class LingxingWarehouseInventoryService {
         this.lingxingWarehouseService = lingxingWarehouseService;
     }
 
+    /** 按仓库 wid 同步库存明细（增量 upsert）。 */
     @Transactional
     public WarehouseInventoryDetailSyncResponse syncInventoryDetails(WarehouseInventoryDetailSyncRequest req) throws Exception {
         if (req == null || !StringUtils.hasText(req.getWid())) {
@@ -69,6 +70,7 @@ public class LingxingWarehouseInventoryService {
         return new WarehouseInventoryDetailSyncResponse(stats.inserted, stats.updated, stats.total, remote);
     }
 
+    /** 按仓库 wid 拉取库存明细原始数据（不落库）。 */
     public Object fetchInventoryDetails(WarehouseInventoryDetailSyncRequest req) throws Exception {
         if (req == null || !StringUtils.hasText(req.getWid())) {
             throw new BusinessException(ResultCode.BAD_REQUEST, "wid 不能为空");
@@ -76,6 +78,7 @@ public class LingxingWarehouseInventoryService {
         return callInventoryDetails(req.getWid(), req.getOffset(), req.getLength(), req.getSku());
     }
 
+    /** 拉取所有海外仓的库存明细首页数据（含仓库和库存原始数据）。 */
     public Object fetchInventoryDetailsFirstPageFromOverseaWarehouses(WarehouseInventoryDetailFullSyncRequest req) throws Exception {
         int length = req != null && req.getLength() != null ? Math.min(Math.max(req.getLength(), 1), 800) : 20;
         String sku = req != null && StringUtils.hasText(req.getSku()) ? req.getSku().trim() : null;
@@ -95,8 +98,7 @@ public class LingxingWarehouseInventoryService {
         return resp;
     }
 
-    // 全量同步：先删除全部库存明细，再分页拉取并批量插入
-    // 全量同步：先删除全部库存明细，再分页拉取并批量插入
+    /** 全量同步库存明细：清空表后按配置的仓库分页拉取并批量插入。 */
     @Transactional
     public WarehouseInventoryDetailSyncResponse syncAllInventoryDetails(WarehouseInventoryDetailFullSyncRequest req) throws Exception {
         int length = req != null && req.getLength() != null ? Math.min(Math.max(req.getLength(), 1), 800) : 200;
@@ -137,6 +139,7 @@ public class LingxingWarehouseInventoryService {
         return new WarehouseInventoryDetailSyncResponse(inserted, 0, total, lastRemote);
     }
 
+    /** 解析 API 返回的一页库存数据为实体列表（按 wid+productId 去重）。 */
     private List<WarehouseInventoryDetailEntity> parseInventoryPage(Object remoteResponse) {
         Map<String, Object> root = objectMapper.convertValue(remoteResponse, new TypeReference<Map<String, Object>>() {
         });
@@ -212,6 +215,7 @@ public class LingxingWarehouseInventoryService {
         return result;
     }
 
+    /** 从 API 响应中提取 total 字段。 */
     private int extractTotal(Object remoteResponse) {
         Map<String, Object> root = objectMapper.convertValue(remoteResponse, new TypeReference<Map<String, Object>>() {
         });
@@ -226,6 +230,7 @@ public class LingxingWarehouseInventoryService {
         }
     }
 
+    /** 调用领星库存明细 API。 */
     private Object callInventoryDetails(String widStr, Integer offset, Integer length, String sku) throws Exception {
         int o = offset == null ? 0 : Math.max(offset, 0);
         int l = length == null ? 20 : Math.min(Math.max(length, 1), 800);
@@ -263,12 +268,14 @@ public class LingxingWarehouseInventoryService {
         return response.readEntity(Object.class);
     }
 
+    /** 构建 HTTP 请求配置。 */
     private Config buildConfig() {
         return new Config()
                 .withConnectionTimeout(properties.getConnectTimeout())
                 .withReadTimeout(properties.getReadTimeout());
     }
 
+    /** 将 API 返回的库存明细增量 upsert 到 warehouse_inventory_detail 表。 */
     private SyncStats upsertInventoryDetails(Object remoteResponse) throws Exception {
         Map<String, Object> root = objectMapper.convertValue(remoteResponse, new TypeReference<Map<String, Object>>() {
         });
@@ -369,6 +376,7 @@ public class LingxingWarehouseInventoryService {
         return new SyncStats(inserted, updated, total);
     }
 
+    /** 按多个 key 依次取值，返回第一个非空文本。 */
     private String getString(Map<String, Object> map, String... keys) {
         if (map == null || keys == null) {
             return null;
@@ -386,11 +394,13 @@ public class LingxingWarehouseInventoryService {
         return null;
     }
 
+    /** 按 key 取 int 值，取不到返回 0。 */
     private int getInt(Map<String, Object> map, String key) {
         Integer v = getIntObj(map, key);
         return v == null ? 0 : v;
     }
 
+    /** 按多个 key 取 Integer 值，取不到返回 null。 */
     private Integer getIntObj(Map<String, Object> map, String... keys) {
         String s = getString(map, keys);
         if (!StringUtils.hasText(s)) {
@@ -403,6 +413,7 @@ public class LingxingWarehouseInventoryService {
         }
     }
 
+    /** 按多个 key 取 BigDecimal 值，取不到返回 null。 */
     private BigDecimal getDecimal(Map<String, Object> map, String... keys) {
         String s = getString(map, keys);
         if (!StringUtils.hasText(s)) {
@@ -415,6 +426,7 @@ public class LingxingWarehouseInventoryService {
         }
     }
 
+    /** 按多个 key 取值并序列化为 JSON 字符串。 */
     private String getJson(Map<String, Object> map, String... keys) {
         Object v = null;
         for (String k : keys) {
@@ -429,6 +441,7 @@ public class LingxingWarehouseInventoryService {
         return JSON.toJSONString(v);
     }
 
+    /** 从 map 中提取指定 key 的列表。 */
     private List<Map<String, Object>> getList(Map<String, Object> map, String key) {
         if (map == null) {
             return Collections.emptyList();
@@ -445,10 +458,12 @@ public class LingxingWarehouseInventoryService {
         }
     }
 
+    /** 生成 32 位 UUID（去掉横线）。 */
     private String uuid32() {
         return UUID.randomUUID().toString().replace("-", "");
     }
 
+    /** 生成 wid+productId 复合键。 */
     private String key(Integer wid, Integer productId) {
         return wid + "_" + productId;
     }

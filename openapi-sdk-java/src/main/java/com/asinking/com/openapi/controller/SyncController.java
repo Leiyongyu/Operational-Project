@@ -9,6 +9,9 @@ import com.asinking.com.openapi.service.LingxingWarehouseService;
 import com.asinking.com.openapi.service.LingxingPurchaseOrderService;
 import com.asinking.com.openapi.service.LingxingWarehouseStatementService;
 import com.asinking.com.openapi.service.LingxingPurchasePlanQueryService;
+import com.asinking.com.openapi.service.LingxingEbayService;
+import com.asinking.com.openapi.service.GoodcangSyncService;
+import com.asinking.com.openapi.service.InventoryOverviewService;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -29,23 +32,34 @@ public class SyncController {
     private final LingxingWarehouseStatementService statementService;
     private final LingxingPurchaseOrderService purchaseOrderService;
     private final LingxingPurchasePlanQueryService purchasePlanQueryService;
+    private final LingxingEbayService ebayService;
+    private final GoodcangSyncService goodcangSyncService;
+    private final InventoryOverviewService overviewService;
 
     public SyncController(LingxingWarehouseService warehouseService,
                           LingxingWarehouseInventoryService inventoryService,
                           LingxingWarehouseStatementService statementService,
                           LingxingPurchaseOrderService purchaseOrderService,
-                          LingxingPurchasePlanQueryService purchasePlanQueryService) {
+                          LingxingPurchasePlanQueryService purchasePlanQueryService,
+                          LingxingEbayService ebayService,
+                          GoodcangSyncService goodcangSyncService,
+                          InventoryOverviewService overviewService) {
         this.warehouseService = warehouseService;
         this.inventoryService = inventoryService;
         this.statementService = statementService;
         this.purchaseOrderService = purchaseOrderService;
         this.purchasePlanQueryService = purchasePlanQueryService;
+        this.ebayService = ebayService;
+        this.goodcangSyncService = goodcangSyncService;
+        this.overviewService = overviewService;
     }
 
+    /** 一键全量同步：仓库、库存、eBay商品、谷仓仓库/入库单、采购单、采购计划、库存流水，完成后刷新快照。 */
     @PostMapping("/all")
     public Result<Map<String, Object>> syncAll() throws Exception {
         Map<String, Object> result = new LinkedHashMap<>();
         long totalStart = System.currentTimeMillis();
+        LocalDate now = LocalDate.now();
 
         // 仓库
         try { long t = System.currentTimeMillis();
@@ -53,13 +67,54 @@ public class SyncController {
             result.put("warehouse", map("inserted", r.getInserted(), "updated", r.getUpdated(), "elapsed", ms(t)));
         } catch (Exception e) { result.put("warehouse", error(e)); }
 
+        // eBay商品
+        try { long t = System.currentTimeMillis();
+            var r = ebayService.syncAllEbayItems(null);
+            result.put("ebayItems", map("total", r.getRemoteTotal(), "elapsed", ms(t)));
+        } catch (Exception e) { result.put("ebayItems", error(e)); }
+
         // 库存
         try { long t = System.currentTimeMillis();
             WarehouseInventoryDetailSyncResponse r = inventoryService.syncAllInventoryDetails(null);
             result.put("inventory", map("inserted", r.getInserted(), "elapsed", ms(t)));
         } catch (Exception e) { result.put("inventory", error(e)); }
 
+        // 谷仓仓库
+        try { long t = System.currentTimeMillis();
+            var r = goodcangSyncService.syncWarehouses();
+            result.put("goodcangWarehouses", map("inserted", r.getInserted(), "elapsed", ms(t)));
+        } catch (Exception e) { result.put("goodcangWarehouses", error(e)); }
+
+        // 谷仓入库单（从2026-01-01到当前）
+        try { long t = System.currentTimeMillis();
+            String to = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            var r = goodcangSyncService.syncGrn("2026-01-01 00:00:00", to);
+            result.put("goodcangGrn", map("inserted", r.getInserted(), "elapsed", ms(t)));
+        } catch (Exception e) { result.put("goodcangGrn", error(e)); }
+
+        // 库存流水
+        try { long t = System.currentTimeMillis();
+            var r = statementService.syncStatements(now.minusDays(90).toString(), now.toString());
+            result.put("statement", map("inserted", r.getInserted(), "elapsed", ms(t)));
+        } catch (Exception e) { result.put("statement", error(e)); }
+
+        // 采购单
+        try { long t = System.currentTimeMillis();
+            var r = purchaseOrderService.sync(now.minusDays(90).toString(), now.toString());
+            result.put("purchaseOrder", map("inserted", r.getInserted(), "elapsed", ms(t)));
+        } catch (Exception e) { result.put("purchaseOrder", error(e)); }
+
+        // 采购计划
+        try { long t = System.currentTimeMillis();
+            var r = purchasePlanQueryService.sync(now.minusDays(90).toString(), now.toString());
+            result.put("purchasePlan", map("inserted", r.getInserted(), "elapsed", ms(t)));
+        } catch (Exception e) { result.put("purchasePlan", error(e)); }
+
         result.put("total_elapsed", (System.currentTimeMillis() - totalStart) / 1000 + "s");
+
+        // 同步完成后刷新运营数据快照
+        try { overviewService.refreshSnapshot(); } catch (Exception ignored) {}
+
         return Result.ok(result);
     }
 

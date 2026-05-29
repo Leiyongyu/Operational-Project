@@ -14,11 +14,14 @@ import {
   dateZhCN,
   useMessage,
 } from 'naive-ui'
-import { createPurchasePlan, searchSkus, searchStores, searchWarehouses } from '@/api/purchasePlan'
+import { useRouter } from 'vue-router'
+import { fetchProductInfo, searchSkus, searchStores, searchWarehouses } from '@/api/purchasePlan'
+import { submitPlans } from '@/api/purchaseSubmit'
 import { useAuthStore } from '@/stores/auth'
 
 
 const message = useMessage()
+const router = useRouter()
 const auth = useAuthStore()
 
 function isDateDisabled(ts) {
@@ -34,6 +37,8 @@ function createEmptyRow() {
     wid: null,
     purchaser_id: null,
     expect_arrive_time: null,
+    quantity_purchase: null,
+    quantity_replenish: null,
     quantity_plan: null,
     remark: '',
     is_auto_fill_fnsku: 0,
@@ -85,6 +90,22 @@ async function onWarehouseSearch(keyword) {
   } finally { warehouseLoading.value = false }
 }
 
+async function autoFillRemark(row) {
+  if (!row.sku || row.wid == null) return
+  try {
+    const info = await fetchProductInfo(row.sku, row.wid)
+    if (info) {
+      const profit = info.profitRate != null ? info.profitRate + '%' : '—'
+      const sales = info.sales ?? 0
+      row.remark = `${info.level || '—'} | ${sales} | ${profit}`
+      if (info.maxReplenish != null) row.quantity_replenish = info.maxReplenish
+      if (info.purchaseQuantity != null) row.quantity_purchase = Number(info.purchaseQuantity)
+    }
+  } catch {
+    // 静默失败，不影响用户操作
+  }
+}
+
 onMounted(() => {
   onSkuSearch('')
   onStoreSearch('')
@@ -106,16 +127,9 @@ function removeRow(index) {
 function isRowEmpty(row) {
   return (
     !String(row?.sku || '').trim() &&
-    !String(row?.sid || '').trim() &&
-    row?.supplier_id == null &&
-    !String(row?.fnsku || '').trim() &&
     row?.wid == null &&
-    row?.purchaser_id == null &&
-    !String(row?.expect_arrive_time || '').trim() &&
     row?.quantity_plan == null &&
-    !String(row?.remark || '').trim() &&
-    (row?.is_auto_fill_fnsku ?? 0) === 0 &&
-    (row?.is_auto_fill_store ?? 0) === 0
+    !String(row?.remark || '').trim()
   )
 }
 
@@ -127,10 +141,14 @@ async function submitAll() {
   }
 
   const invalidIndex = meaningfulRows.findIndex(
-    (row) => !String(row?.sku || '').trim() || row?.quantity_plan === null || row?.quantity_plan === undefined,
+    (row) =>
+      !String(row?.sku || '').trim() ||
+      row?.quantity_plan === null || row?.quantity_plan === undefined ||
+      row?.wid == null ||
+      !String(row?.remark || '').trim(),
   )
   if (invalidIndex >= 0) {
-    message.warning(`第 ${invalidIndex + 1} 行 SKU/计划采购量不能为空`)
+    message.warning(`第 ${invalidIndex + 1} 行 SKU/仓库/计划采购量/产品备注 不能为空`)
     return
   }
 
@@ -139,34 +157,27 @@ async function submitAll() {
     const payload = meaningfulRows.map((row) => {
       const item = {
         sku: String(row.sku || '').trim(),
-        quantity_plan: row.quantity_plan,
-        cg_uid: null,
+        wid: row.wid,
+        quantityPlan: row.quantity_plan,
+        quantityPurchase: row.quantity_purchase || 0,
+        quantityReplenish: row.quantity_replenish || 0,
+        remark: String(row.remark || '').trim(),
       }
 
       if (row.sid) item.sid = row.sid
-      if (row.supplier_id != null) item.supplier_id = row.supplier_id
+      if (row.supplier_id != null) item.supplierId = row.supplier_id
       if (row.fnsku) item.fnsku = row.fnsku
-      if (row.wid != null) item.wid = row.wid
-      if (row.purchaser_id != null) item.purchaser_id = row.purchaser_id
-      if (row.expect_arrive_time) item.expect_arrive_time = row.expect_arrive_time
-      if (row.remark) item.remark = row.remark
-
-      const isAutoFnsku = Number(row.is_auto_fill_fnsku) === 1
-      const isAutoStore = Number(row.is_auto_fill_store) === 1
-      if (isAutoFnsku || isAutoStore) {
-        item.options = {}
-        if (isAutoFnsku) item.options.is_auto_fill_fnsku = 1
-        if (isAutoStore) item.options.is_auto_fill_store = 1
-      }
+      if (row.purchaser_id != null) item.purchaserId = row.purchaser_id
+      if (row.expect_arrive_time) item.expectArriveTime = row.expect_arrive_time
 
       return item
     })
 
-    const res = await createPurchasePlan(payload)
-    message.success(`创建成功${res?.ppgSn ? '，批次号: ' + res.ppgSn : ''}`)
+    await submitPlans(payload)
+    message.success(`提交成功，共 ${payload.length} 条`)
     items.value = [createEmptyRow()]
   } catch (err) {
-    message.error(err instanceof Error ? err.message : '创建失败')
+    message.error(err instanceof Error ? err.message : '提交失败')
   } finally { submitting.value = false }
 }
 
@@ -189,6 +200,7 @@ const columns = [
         onSearch: onSkuSearch,
         'onUpdate:value': (val) => {
           row.sku = val || ''
+          autoFillRemark(row)
         },
       }),
   },
@@ -260,6 +272,7 @@ const columns = [
         onSearch: onWarehouseSearch,
         'onUpdate:value': (val) => {
           row.wid = val ?? null
+          autoFillRemark(row)
         },
       }),
   },
@@ -283,6 +296,32 @@ const columns = [
     key: 'purchaser_name',
     render: () =>
       h(NInput, { value: auth.ownerName, size: 'small', disabled: true, style: { width: '100%', minWidth: 0 } }),
+  },
+  {
+    title: '采购数量',
+    key: 'quantity_purchase',
+    render: (row) =>
+      h(NInputNumber, {
+        value: row.quantity_purchase,
+        size: 'small',
+        min: 0,
+        disabled: true,
+        placeholder: '自动填充',
+        style: { width: '100%', minWidth: 0 },
+      }),
+  },
+  {
+    title: '预估补货量',
+    key: 'quantity_replenish',
+    render: (row) =>
+      h(NInputNumber, {
+        value: row.quantity_replenish,
+        size: 'small',
+        min: 0,
+        disabled: true,
+        placeholder: '自动填充',
+        style: { width: '100%', minWidth: 0 },
+      }),
   },
   {
     title: '计划采购量',
@@ -368,6 +407,7 @@ const columns = [
     title: '操作',
     key: 'actions',
     width: 120,
+    fixed: 'right',
     render(row, index) {
       return h(NSpace, { size: 12, wrap: false }, {
         default: () => [
@@ -402,10 +442,12 @@ const columns = [
 
 <template>
   <section class="dashboard-page">
+    <div style="margin-bottom:16px">
+      <NButton size="small" @click="router.push({ name: 'purchases' })">← 返回采购列表</NButton>
+    </div>
     <NCard title="创建采购计划" size="large" class="dashboard-card">
       <template #header-extra>
         <NSpace>
-
           <NButton type="success" size="small" :loading="submitting" @click="submitAll">
             提交 ({{ items.filter((row) => !isRowEmpty(row)).length }}条)
           </NButton>
@@ -419,6 +461,7 @@ const columns = [
         :row-key="(_, i) => i"
         :pagination="{ pageSize: 20 }"
         :max-height="500"
+        :scroll-x="1800"
       />
     </NCard>
   </section>

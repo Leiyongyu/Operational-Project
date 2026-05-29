@@ -3,6 +3,7 @@ import { h, onMounted, reactive, ref } from 'vue'
 import {
   NButton,
   NCard,
+  NCheckbox,
   NDataTable,
   NDynamicTags,
   NForm,
@@ -17,6 +18,7 @@ import {
 } from 'naive-ui'
 import { createUser, deleteUser, fetchUsersPage, updateUser } from '@/api/users'
 import { createBrandOwner, deleteBrandOwner, fetchBrandOwnerByBrandCode, fetchBrandsByOwner, fetchDistinctBrandCodes, fetchDistinctOwnerNames, updateBrandOwner } from '@/api/brandOwners'
+import { addMember, cancelLeader, fetchAllTeams, fetchAvailableMembers, fetchMembers, isLeader, removeMember, setLeader } from '@/api/team'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -54,6 +56,13 @@ const roleOptions = [
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
 const editOwners = ref([])
+
+// 团队管理状态
+const teamLeader = ref(false)
+const teamMembers = ref([])
+const availableMembers = ref([])
+const teamLoading = ref(false)
+const teamMap = ref({}) // { leader: [member1, member2, ...] }
 
 const createForm = reactive({
   account: '',
@@ -112,33 +121,6 @@ function formatTime(value) {
   }
 
   return String(value).replace('T', ' ')
-}
-
-function renderOwners(owners) {
-  if (!Array.isArray(owners) || owners.length === 0) {
-    return '-'
-  }
-
-  return h(
-    NSpace,
-    { size: 6, wrap: true },
-    {
-      default: () =>
-        owners.map((ownerName) => {
-          return h(
-            NTag,
-            {
-              size: 'small',
-              type: 'success',
-              bordered: false,
-            },
-            {
-              default: () => ownerName,
-            },
-          )
-        }),
-    },
-  )
 }
 
 async function loadUsers() {
@@ -222,6 +204,9 @@ async function openEditModal(row) {
   editForm.originalOwnerName = row.ownerName || ''
 
   if (brandCodeOptions.value.length === 0) await loadFormOptions()
+
+  // 加载团队状态
+  await loadTeamData(row.ownerName)
 
   // 加载该负责人当前管理的品牌
   const brands = await fetchBrandsByOwner(row.ownerName)
@@ -319,6 +304,100 @@ function confirmDelete(row) {
   })
 }
 
+async function loadTeamData(ownerName) {
+  if (!ownerName) {
+    teamLeader.value = false
+    teamMembers.value = []
+    availableMembers.value = []
+    return
+  }
+  try {
+    const [leaderResult, membersResult] = await Promise.all([
+      isLeader(ownerName),
+      fetchMembers(ownerName),
+    ])
+    teamLeader.value = leaderResult === true
+    teamMembers.value = membersResult || []
+    if (teamLeader.value) {
+      const available = await fetchAvailableMembers(ownerName)
+      availableMembers.value = (available || []).map((v) => ({ label: v, value: v }))
+    }
+  } catch {
+    teamLeader.value = false
+    teamMembers.value = []
+  }
+}
+
+async function handleToggleLeader(val) {
+  // 取消组长时需要确认
+  if (!val) {
+    dialog.warning({
+      title: '确认取消组长',
+      content: '取消后该组长的所有组员关系将被清除，确定继续？',
+      positiveText: '确定取消',
+      negativeText: '再想想',
+      onPositiveClick: () => doToggleLeader(false),
+    })
+    return
+  }
+  await doToggleLeader(true)
+}
+
+async function doToggleLeader(val) {
+  teamLoading.value = true
+  try {
+    if (val) {
+      await setLeader(editForm.ownerName)
+      const available = await fetchAvailableMembers(editForm.ownerName)
+      availableMembers.value = (available || []).map((v) => ({ label: v, value: v }))
+    } else {
+      await cancelLeader(editForm.ownerName)
+      teamMembers.value = []
+      availableMembers.value = []
+    }
+    teamLeader.value = val
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '操作失败')
+    teamLeader.value = !val
+  } finally {
+    teamLoading.value = false
+  }
+}
+
+const newMember = ref('')
+async function handleAddMember() {
+  if (!newMember.value) return
+  teamLoading.value = true
+  try {
+    const res = await addMember(editForm.ownerName, newMember.value)
+    // 重新加载
+    const members = await fetchMembers(editForm.ownerName)
+    teamMembers.value = members || []
+    newMember.value = ''
+    // 刷新可选列表
+    const available = await fetchAvailableMembers(editForm.ownerName)
+    availableMembers.value = (available || []).map((v) => ({ label: v, value: v }))
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '添加失败')
+  } finally {
+    teamLoading.value = false
+  }
+}
+
+async function handleRemoveMember(memberName) {
+  teamLoading.value = true
+  try {
+    await removeMember(editForm.ownerName, memberName)
+    teamMembers.value = teamMembers.value.filter((m) => m !== memberName)
+    const available = await fetchAvailableMembers(editForm.ownerName)
+    availableMembers.value = (available || []).map((v) => ({ label: v, value: v }))
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '移除失败')
+  } finally {
+    teamLoading.value = false
+  }
+}
+
 function confirmResetPassword(row) {
   dialog.warning({
     title: '重置密码',
@@ -370,10 +449,33 @@ const columns = [
     key: 'ownerName',
   },
   {
+    title: '团队',
+    key: 'team',
+    width: 220,
+    render(row) {
+      const members = teamMap.value[row.ownerName]
+      if (!members || members.length === 0) return h('span', { style: { color: '#ccc' } }, '—')
+      return h(NSpace, { size: 4, wrap: true }, {
+        default: () => [
+          h(NTag, { size: 'small', type: 'warning', bordered: false, style: 'borderRadius:4px' }, { default: () => '组长' }),
+          ...members.map((m) =>
+            h(NTag, { size: 'small', type: 'info', bordered: false, style: 'borderRadius:4px' }, { default: () => m })
+          ),
+        ],
+      })
+    },
+  },
+  {
     title: '管理品牌',
     key: 'owners',
+    width: 200,
     render(row) {
-      return renderOwners(row.owners)
+      if (!Array.isArray(row.owners) || row.owners.length === 0) return '—'
+      return h(NSpace, { size: 4, wrap: true }, {
+        default: () => row.owners.map((name) =>
+          h(NTag, { size: 'small', type: 'success', bordered: false, style: 'borderRadius:4px' }, { default: () => name })
+        ),
+      })
     },
   },
   {
@@ -436,8 +538,14 @@ const columns = [
   },
 ]
 
+async function loadTeamMap() {
+  try { teamMap.value = await fetchAllTeams() || {} }
+  catch { teamMap.value = {} }
+}
+
 onMounted(() => {
   loadUsers()
+  loadTeamMap()
 })
 </script>
 
@@ -558,7 +666,41 @@ onMounted(() => {
         <NFormItem label="管理品牌">
           <NDynamicTags v-model:value="editForm.brands" />
         </NFormItem>
+        <NFormItem label="设为组长" v-if="editForm.ownerName">
+          <NCheckbox
+            :checked="teamLeader"
+            :loading="teamLoading"
+            @update:checked="handleToggleLeader"
+          />
+        </NFormItem>
       </NForm>
+
+      <!-- 组员管理区 -->
+      <div v-if="teamLeader" style="margin-top: 12px; border-top: 1px solid #f0f0f0; padding-top: 16px;">
+        <div style="font-size: 14px; font-weight: 600; margin-bottom: 12px; color: rgba(0,0,0,0.85);">
+          组员管理（{{ teamMembers.length }}人）
+        </div>
+        <!-- 现有组员 -->
+        <NSpace v-if="teamMembers.length > 0" vertical size="small" style="margin-bottom: 12px;">
+          <div v-for="m in teamMembers" :key="m" style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;">
+            <NTag size="small" :bordered="false" type="info">{{ m }}</NTag>
+            <NButton size="tiny" type="error" secondary @click="handleRemoveMember(m)">移除</NButton>
+          </div>
+        </NSpace>
+        <div v-else style="color: #999; font-size: 13px; margin-bottom: 12px;">暂无组员</div>
+        <!-- 添加组员 -->
+        <NSpace size="small" align="center">
+          <NSelect
+            v-model:value="newMember"
+            :options="availableMembers"
+            filterable
+            clearable
+            placeholder="选择组员"
+            style="width: 200px"
+          />
+          <NButton size="small" type="primary" :loading="teamLoading" @click="handleAddMember">添加</NButton>
+        </NSpace>
+      </div>
 
       <template #footer>
         <NSpace justify="end">

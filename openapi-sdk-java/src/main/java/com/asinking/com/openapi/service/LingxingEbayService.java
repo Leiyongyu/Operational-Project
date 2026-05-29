@@ -48,6 +48,7 @@ public class LingxingEbayService {
     private final ObjectMapper objectMapper;
     private final EbayProductListingService productListingService;
 
+    /** 构造 eBay 服务，注入配置、认证、JSON 工具及 Listing 持久化服务 */
     public LingxingEbayService(LingxingProperties properties,
                                LingxingAuthService authService,
                                ObjectMapper objectMapper,
@@ -58,6 +59,7 @@ public class LingxingEbayService {
         this.productListingService = productListingService;
     }
 
+    /** 按请求参数拉取单页 eBay 商品 listing，增量 upsert 入库 */
     @Transactional
     public EbayProductSyncResult listEbayItems(EbayListRequest req) throws Exception {
         int offset = req != null && req.getOffset() != null ? req.getOffset() : 0;
@@ -69,6 +71,7 @@ public class LingxingEbayService {
         return new EbayProductSyncResult(stats.inserted, stats.updated, stats.total, remote);
     }
 
+    /** 全量同步 eBay 商品 listing，自动分页遍历直到无更多数据 */
     @Transactional
     public EbayProductFullSyncResult syncAllEbayItems(EbayListRequest req) throws Exception {
         int pageSize = normalizePageSize(req != null && req.getLength() != null ? req.getLength() : 200, 200);

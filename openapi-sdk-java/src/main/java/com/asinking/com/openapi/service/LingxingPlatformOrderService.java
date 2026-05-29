@@ -11,6 +11,9 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDate;
 import java.util.*;
 
+/**
+ * 领星平台订单服务：查询发货单列表。
+ */
 @Service
 public class LingxingPlatformOrderService {
 
@@ -19,6 +22,7 @@ public class LingxingPlatformOrderService {
     private final LingxingProperties properties;
     private final LingxingAuthService authService;
 
+    /** 构造订单服务，注入配置及认证服务 */
     public LingxingPlatformOrderService(LingxingProperties properties,
                                         LingxingAuthService authService) {
         this.properties = properties;

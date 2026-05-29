@@ -3,6 +3,7 @@ package com.asinking.com.openapi.controller;
 import com.asinking.com.openapi.common.response.Result;
 import com.asinking.com.openapi.entity.EbaySalesEntity;
 import com.asinking.com.openapi.mapper.mp.EbaySalesMapper;
+import com.asinking.com.openapi.service.InventoryOverviewService;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,16 +14,22 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
+/**
+ * eBay 销量数据接口，支持 Excel 上传导入和去重更新。
+ */
 @RestController
 @RequestMapping("/api/ebay-sales")
 public class EbaySalesController {
 
     private final EbaySalesMapper mapper;
+    private final InventoryOverviewService overviewService;
 
-    public EbaySalesController(EbaySalesMapper mapper) {
+    public EbaySalesController(EbaySalesMapper mapper, InventoryOverviewService overviewService) {
         this.mapper = mapper;
+        this.overviewService = overviewService;
     }
 
+    /** 上传 eBay 销量 Excel 文件，解析并导入数据，按 (平台订单号+SKU) 去重更新。 */
     @PostMapping("/upload")
     @Transactional
     public Result<Map<String, Object>> upload(@RequestParam("file") MultipartFile file) throws Exception {
@@ -82,9 +89,14 @@ public class EbaySalesController {
         Map<String, Object> result = new HashMap<>();
         result.put("inserted", inserted);
         result.put("updated", updated);
+
+        // 销量数据变更后刷新运营数据快照
+        try { overviewService.refreshSnapshot(); } catch (Exception ignored) {}
+
         return Result.ok(result);
     }
 
+    /** 读取单元格字符串值。 */
     private String getStr(Cell c) {
         if (c == null) return "";
         switch (c.getCellType()) {
@@ -98,6 +110,7 @@ public class EbaySalesController {
         }
     }
 
+    /** 读取单元格整数值，非数字返回 0。 */
     private int parseInt(Cell c) {
         if (c == null) return 0;
         try {
@@ -108,6 +121,7 @@ public class EbaySalesController {
         }
     }
 
+    /** 解析 yyyy-MM-dd HH:mm:ss 格式的日期时间字符串。 */
     private LocalDateTime parseDateTime(String s) {
         if (s == null || s.isEmpty()) return null;
         try {
@@ -117,5 +131,6 @@ public class EbaySalesController {
         }
     }
 
+    /** 生成 32 位无横线 UUID。 */
     private String uuid32() { return UUID.randomUUID().toString().replace("-", ""); }
 }

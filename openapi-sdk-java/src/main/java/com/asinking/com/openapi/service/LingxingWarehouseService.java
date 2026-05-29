@@ -51,11 +51,13 @@ public class LingxingWarehouseService {
         this.warehouseService = warehouseService;
     }
 
+    /** 拉取海外仓（type=3）原始数据，不落库。 */
     // type=1 本地仓, type=3 海外仓, is_delete=0 — 系统设置的仓库列表
     public Object fetchOverseaWarehouses(WarehouseSyncRequest req) throws Exception {
         return callWarehouseApi(3, req);
     }
 
+    /** 同步本地仓和海外仓数据，增量 upsert 到 warehouse 表。 */
     @Transactional
     public WarehouseSyncResponse syncOverseaWarehouses(WarehouseSyncRequest req) throws Exception {
         // 拉取 type=1（本地仓）和 type=3（海外仓），合并后写入
@@ -72,6 +74,7 @@ public class LingxingWarehouseService {
         return new WarehouseSyncResponse(inserted, updated, total, remoteType3);
     }
 
+    /** 调用领星仓库列表 API。 */
     private Object callWarehouseApi(int type, WarehouseSyncRequest req) throws Exception {
         int offset = req != null && req.getOffset() != null ? Math.max(req.getOffset(), 0) : 0;
         int length = req != null && req.getLength() != null ? Math.min(Math.max(req.getLength(), 1), 1000) : 1000;
@@ -107,6 +110,7 @@ public class LingxingWarehouseService {
         return response.readEntity(Object.class);
     }
 
+    /** 从数据库查出所有海外仓（type=3, is_delete=0）的 wid 列表。 */
     public List<Integer> listOverseaWarehouseWids() {
         return warehouseService.lambdaQuery()
                 .eq(WarehouseEntity::getType, 3)
@@ -119,6 +123,7 @@ public class LingxingWarehouseService {
                 .collect(Collectors.toList());
     }
 
+    /** 从 API 原始响应中提取海外仓（type=3）的 wid 列表。 */
     public List<Integer> extractOverseaWarehouseWids(Object warehouseRemote) {
         Map<String, Object> root = objectMapper.convertValue(warehouseRemote, new TypeReference<Map<String, Object>>() {
         });
@@ -144,12 +149,14 @@ public class LingxingWarehouseService {
         return wids.stream().distinct().collect(Collectors.toList());
     }
 
+    /** 构建 HTTP 请求配置。 */
     private Config buildConfig() {
         return new Config()
                 .withConnectionTimeout(properties.getConnectTimeout())
                 .withReadTimeout(properties.getReadTimeout());
     }
 
+    /** 将 API 返回的仓库数据增量 upsert 到 warehouse 表。 */
     private SyncStats upsertWarehouses(Object remoteResponse) {
         Map<String, Object> root = objectMapper.convertValue(remoteResponse, new TypeReference<Map<String, Object>>() {
         });
@@ -238,6 +245,7 @@ public class LingxingWarehouseService {
         return new SyncStats(inserted, updated, total);
     }
 
+    /** 按多个 key 依次取值，返回第一个非空文本。 */
     private String getString(Map<String, Object> map, String... keys) {
         if (map == null || keys == null) {
             return null;
@@ -255,11 +263,13 @@ public class LingxingWarehouseService {
         return null;
     }
 
+    /** 按 key 取 int 值，取不到返回 0。 */
     private int getInt(Map<String, Object> map, String key) {
         Integer v = getIntObj(map, key);
         return v == null ? 0 : v;
     }
 
+    /** 按多个 key 取 Integer 值，取不到返回 null。 */
     private Integer getIntObj(Map<String, Object> map, String... keys) {
         String s = getString(map, keys);
         if (!StringUtils.hasText(s)) {
@@ -272,6 +282,7 @@ public class LingxingWarehouseService {
         }
     }
 
+    /** 从 map 中提取指定 key 的列表。 */
     private List<Map<String, Object>> getList(Map<String, Object> map, String key) {
         if (map == null) {
             return Collections.emptyList();
@@ -288,6 +299,7 @@ public class LingxingWarehouseService {
         }
     }
 
+    /** 生成 32 位 UUID（去掉横线）。 */
     private String uuid32() {
         return UUID.randomUUID().toString().replace("-", "");
     }

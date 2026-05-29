@@ -34,6 +34,9 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+/**
+ * 用户业务实现，提供登录认证、CRUD 及品牌归属关联。
+ */
 @Service
 public class UserServiceImpl extends ServiceImpl<UserMapper, UserEntity> implements UserService {
 
@@ -50,6 +53,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserEntity> impleme
         this.brandOwnerService = brandOwnerService;
     }
 
+    /** 用户登录，支持 BCrypt 和 MD5 两种密码校验。 */
     @Override
     public UserLoginResponse login(String account, String password) {
         if (!StringUtils.hasText(account) || !StringUtils.hasText(password)) {
@@ -72,6 +76,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserEntity> impleme
         return new UserLoginResponse(tokenInfo.getToken(), tokenInfo.getExpiresAtMillis(), user.getAccount(), user.getRole(), user.getOwnerName());
     }
 
+    /** 解析 Bearer token 并将其加入黑名单。 */
     @Override
     public void logout(String authorizationHeader) {
         String token = extractBearerToken(authorizationHeader);
@@ -86,6 +91,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserEntity> impleme
         tokenBlacklist.revoke(jti, expMillis);
     }
 
+    /** 创建新用户，自动创建品牌归属记录（幂等）。 */
     @Override
     @Transactional
     public UserResponse createUser(String operatorUserId, String account, String password, String role, String ownerName, String brandCode) {
@@ -141,6 +147,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserEntity> impleme
         return toResponse(entity);
     }
 
+    /** 按 ID 更新用户角色、负责人或密码。 */
     @Override
     public UserResponse updateUser(String operatorUserId, String id, String role, String ownerName, String password) {
         if (!StringUtils.hasText(id)) {
@@ -172,6 +179,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserEntity> impleme
         return toResponse(entity);
     }
 
+    /** 按 ID 删除用户。 */
     @Override
     public boolean deleteUser(String operatorUserId, String id) {
         if (!StringUtils.hasText(id)) {
@@ -180,6 +188,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserEntity> impleme
         return removeById(id);
     }
 
+    /** 按 ID 查询用户。 */
     @Override
     public UserResponse getUserById(String id) {
         if (!StringUtils.hasText(id)) {
@@ -192,6 +201,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserEntity> impleme
         return toResponse(entity);
     }
 
+    /** 分页查询用户，支持按账号和角色筛选。 */
     @Override
     public Page<UserEntity> pageUsers(long page, long size, String account, String role) {
         long p = page <= 0 ? 1 : page;
@@ -203,6 +213,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserEntity> impleme
                 .getWrapper());
     }
 
+    /** 分页查询用户并返回含品牌归属信息的 UserResponse。 */
     @Override
     public PageResult<UserResponse> pageUserResponses(long page, long size, String account, String role) {
         Page<UserEntity> result = pageUsers(page, size, account, role);
@@ -215,10 +226,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserEntity> impleme
         return new PageResult<>(result.getTotal(), result.getCurrent(), result.getSize(), responses);
     }
 
+    /** 将 UserEntity 转为 UserResponse。 */
     private UserResponse toResponse(UserEntity entity) {
         return toResponse(entity, buildBrandOwnerIndex(Collections.singletonList(entity)));
     }
 
+    /** 将 UserEntity 转为 UserResponse（携带品牌归属索引）。 */
     private UserResponse toResponse(UserEntity entity, Map<String, BrandOwnerEntity> brandOwnerIndex) {
         UserResponse resp = new UserResponse();
         resp.setId(entity.getId());
@@ -231,6 +244,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserEntity> impleme
         return resp;
     }
 
+    /** 根据用户列表构建 brandCode -> BrandOwnerEntity 索引。 */
     private Map<String, BrandOwnerEntity> buildBrandOwnerIndex(List<UserEntity> users) {
         Set<String> ownerNames = new HashSet<>();
         for (UserEntity user : users) {
@@ -258,7 +272,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserEntity> impleme
         return index;
     }
 
-    /** 根据 owner_name 查 brand_owner 表，返回该负责人名下的所有品牌代码列表 */
+    /** 根据 owner_name 查 brand_owner 表，返回该负责人名下的所有品牌代码列表。 */
     private List<String> resolveOwnerBrands(String ownerName) {
         if (!StringUtils.hasText(ownerName)) {
             return Collections.emptyList();
@@ -272,6 +286,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserEntity> impleme
                 .collect(Collectors.toList());
     }
 
+    /** 校验原始密码与存储密码是否匹配，支持 BCrypt、MD5 和明文。 */
     private boolean matches(String raw, String stored) {
         if (!StringUtils.hasText(stored)) {
             return false;
@@ -286,6 +301,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserEntity> impleme
         return raw.equals(trimmed);
     }
 
+    /** 从 Authorization 头中提取 Bearer token。 */
     private String extractBearerToken(String authorization) {
         if (!StringUtils.hasText(authorization)) {
             return null;

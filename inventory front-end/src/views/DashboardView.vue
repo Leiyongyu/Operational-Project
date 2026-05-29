@@ -16,13 +16,16 @@ import {
 import { fetchInventoryOverview, fetchInventoryOverviewWarehouses } from '@/api/inventoryOverview'
 import { syncAll } from '@/api/sync'
 import { uploadEbaySales } from '@/api/ebaySales'
+import { useAuthStore } from '@/stores/auth'
 
 
 const message = useMessage()
-
+const authStore = useAuthStore()
+const isAdmin = computed(() => authStore.isAdmin)
 
 const loading = ref(false)
 const syncing = ref(false)
+const uploading = ref(false)
 const warehouseLoading = ref(false)
 let loadSeq = 0
 
@@ -43,55 +46,8 @@ function formatDateTime(value) {
 
 const updatedAt = ref('')
 
-const filteredRows = computed(() => {
-  const selectedWarehouses = Array.isArray(filters.warehouseNames) ? filters.warehouseNames : []
-  const optionCount = warehouseOptions.value.length
-  const filterByWarehouse =
-    optionCount > 0 && selectedWarehouses.length > 0 && selectedWarehouses.length < optionCount
-
-  const seen = new Set()
-  const result = []
-  for (const row of replenishRows.value) {
-    if (filterByWarehouse) {
-      const warehouses = String(row?.warehouseNames || '')
-        .split(',')
-        .map((item) => item.trim())
-        .filter(Boolean)
-
-      const labelMode = warehouseOptions.value.some((option) => option.mode === 'label')
-      const matched = labelMode
-        ? selectedWarehouses.some((warehouse) =>
-            matchWarehouseLabel(warehouses.join(','), String(warehouse)),
-          )
-        : selectedWarehouses.some((warehouse) => warehouses.includes(warehouse))
-      if (!matched) continue
-    }
-
-    const dedupKey = (row?.warehouseNames || '') + '|' + (row?.sku || '')
-    if (seen.has(dedupKey)) continue
-    seen.add(dedupKey)
-    result.push(row)
-  }
-  return result
-})
-
-function matchWarehouseLabel(warehouseNames, label) {
-  const text = String(warehouseNames || '')
-
-  if (!label) {
-    return true
-  }
-
-  const mapping = {
-    成都: ['成都', 'CTU'],
-    美国: ['美国', 'US', '加州', '新泽西', 'NJ', 'CA'],
-    英国: ['英国', 'UK'],
-    德国: ['德国', 'DE'],
-  }
-
-  const keywords = mapping[label] || [label]
-  return keywords.some((keyword) => keyword && text.includes(keyword))
-}
+// 数据由后端完成筛选，前端直接使用返回结果
+const filteredRows = computed(() => replenishRows.value)
 
 function renderRatioTag(value) {
   if (value === undefined || value === null || value === '') {
@@ -330,28 +286,8 @@ async function loadWarehouseOptions() {
       ? list
           .map((item) => {
             const label = item?.label ? String(item.label) : ''
-            const name = item?.name ?? item?.warehouseName ?? ''
-            const wids = item?.wids ?? item?.wid
-
-            if (name) {
-              return {
-                label: label ? `${label} / ${name}` : String(name),
-                value: String(name),
-                wid: item?.wid,
-                mode: 'name',
-              }
-            }
-
-            if (label && wids) {
-              return {
-                label,
-                value: label,
-                wids: String(wids),
-                mode: 'label',
-              }
-            }
-
-            return null
+            if (!label) return null
+            return { label, value: label }
           })
           .filter(Boolean)
       : []
@@ -370,9 +306,15 @@ async function loadInventoryOverview() {
   loading.value = true
   const seq = ++loadSeq
 
+  const selected = Array.isArray(filters.warehouseNames) ? filters.warehouseNames : []
+  const optionCount = warehouseOptions.value.length
+  const warehouseParam =
+    selected.length > 0 && selected.length < optionCount ? selected.join(',') : undefined
+
   try {
     const list = await fetchInventoryOverview({
       sku: filters.sku.trim() || undefined,
+      warehouse: warehouseParam,
     })
     if (seq !== loadSeq) return
     replenishRows.value = Array.isArray(list) ? list : []
@@ -411,14 +353,14 @@ async function handleUploadExcel() {
   input.onchange = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-    syncing.value = true
+    uploading.value = true
     try {
       const res = await uploadEbaySales(file)
       message.success(`上传成功，新增${res.inserted}条，更新${res.updated}条`)
     } catch (err) {
       message.error(err instanceof Error ? err.message : '上传失败')
     } finally {
-      syncing.value = false
+      uploading.value = false
     }
   }
   input.click()
@@ -457,10 +399,10 @@ function renderWarehouseOption({ node, option, selected }) {
           <NButton size="small" secondary :loading="loading" @click="loadInventoryOverview">
             刷新
           </NButton>
-          <NButton size="small" type="warning" :loading="syncing" @click="handleSyncAll">
+          <NButton v-if="isAdmin" size="small" type="warning" :loading="syncing" @click="handleSyncAll">
             拉取最新数据
           </NButton>
-          <NButton size="small" type="info" :loading="syncing" @click="handleUploadExcel">
+          <NButton size="small" type="info" :loading="uploading" @click="handleUploadExcel">
             上传销量报表
           </NButton>
 

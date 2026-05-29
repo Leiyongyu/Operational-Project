@@ -28,6 +28,7 @@ public class PurchaseOrderEntity {
     @TableField("item_product_id") private Integer itemProductId;
     @TableField("item_quantity_real") private Integer itemQuantityReal;
     @TableField("item_quantity_entry") private Integer itemQuantityEntry;
+    @TableField("item_quantity_receive") private Integer itemQuantityReceive;
     @TableField("item_price") private java.math.BigDecimal itemPrice;
     @TableField("item_amount") private java.math.BigDecimal itemAmount;
     @TableField(value = "upload_time", insertStrategy = FieldStrategy.NEVER, updateStrategy = FieldStrategy.NEVER)

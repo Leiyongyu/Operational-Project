@@ -17,6 +17,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
+/**
+ * 领星采购订单服务：按日期范围分页拉取采购订单并增量 upsert 入库。
+ */
 @Service
 public class LingxingPurchaseOrderService {
     private static final String PATH = "erp/sc/routing/data/local_inventory/purchaseOrderList";
@@ -25,12 +28,14 @@ public class LingxingPurchaseOrderService {
     private final ObjectMapper objectMapper;
     private final PurchaseOrderMapper mapper;
 
+    /** 构造采购订单服务，注入配置、认证、JSON 工具及 Mapper */
     public LingxingPurchaseOrderService(LingxingProperties properties, LingxingAuthService authService,
                                         ObjectMapper objectMapper, PurchaseOrderMapper mapper) {
         this.properties = properties; this.authService = authService;
         this.objectMapper = objectMapper; this.mapper = mapper;
     }
 
+    /** 按日期范围同步采购订单，以 (order_sn, create_time) 唯一键增量 upsert */
     @Transactional
     public SaleStatSyncResponse sync(String startDate, String endDate) throws Exception {
         // 按 (order_sn, create_time) 唯一键增量
@@ -77,6 +82,7 @@ public class LingxingPurchaseOrderService {
                 e.setItemProductId(intVal(firstItem.get("product_id")));
                 e.setItemQuantityReal(intVal(firstItem.get("quantity_real")));
                 e.setItemQuantityEntry(intVal(firstItem.get("quantity_entry")));
+                e.setItemQuantityReceive(intVal(firstItem.get("quantity_receive")));
                 e.setItemPrice(dec(firstItem.get("price")));
                 e.setItemAmount(dec(firstItem.get("amount")));
 

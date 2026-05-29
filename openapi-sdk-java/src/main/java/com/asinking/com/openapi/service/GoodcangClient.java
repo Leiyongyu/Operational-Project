@@ -21,6 +21,7 @@ public class GoodcangClient {
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /** 通过配置注入构造客户端 */
     public GoodcangClient(GoodcangProperties properties) {
         this.properties = properties;
     }

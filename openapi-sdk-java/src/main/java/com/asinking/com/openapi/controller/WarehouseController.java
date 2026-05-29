@@ -26,6 +26,7 @@ public class WarehouseController {
     private final LingxingWarehouseService lingxingWarehouseService;
     private final WarehouseService warehouseService;
 
+    /** 构造器注入领星仓库同步服务和本地仓库查询服务。 */
     public WarehouseController(LingxingWarehouseService lingxingWarehouseService, WarehouseService warehouseService) {
         this.lingxingWarehouseService = lingxingWarehouseService;
         this.warehouseService = warehouseService;

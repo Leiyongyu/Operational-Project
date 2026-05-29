@@ -24,11 +24,13 @@ public class LingxingAuthService {
     private final Object tokenLock = new Object();
     private volatile CachedToken cachedToken;
 
+    /** 构造认证服务，注入配置及 JSON 工具 */
     public LingxingAuthService(LingxingProperties properties, ObjectMapper objectMapper) {
         this.properties = properties;
         this.objectMapper = objectMapper;
     }
 
+    /** 调用 SDK 获取 access_token 原始响应 */
     public Result<?> getAccessTokenResponse() throws Exception {
         AKRestClient client = new AKRestClient(properties.getEndpoint(), buildConfig());
         Result<?> result = client.getAccessToken(properties.getAppId(), properties.getAppSecret());
@@ -38,7 +40,7 @@ public class LingxingAuthService {
         return result;
     }
 
-    // 双重检查锁：避免并发时重复请求 token，skewSeconds 提前刷新防止请求中 token 过期
+    /** 获取有效 access_token，双重检查锁避免并发重复请求，skewSeconds 提前刷新防止过期 */
     public String getAccessToken() throws Exception {
         CachedToken token = cachedToken;
         if (token != null && token.isValid(properties.getTokenRefreshSkewSeconds())) {

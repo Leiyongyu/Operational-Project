@@ -43,6 +43,7 @@ public class LingxingWarehouseStatementService {
         this.mapper = mapper;
     }
 
+    /** 按时间范围分页拉取仓库库存流水，按 (wid, sku, opt_time) 唯一键增量 upsert。 */
     @Transactional
     public SaleStatSyncResponse syncStatements(String startDate, String endDate) throws Exception {
         // 按 (wid, sku, opt_time) 唯一键增量 upsert
@@ -96,6 +97,7 @@ public class LingxingWarehouseStatementService {
         return new SaleStatSyncResponse(inserted + updated, inserted + updated, Collections.emptyList());
     }
 
+    /** 调用领星仓库库存流水 API。 */
     private Object callApi(String startDate, String endDate, int offset, int length) throws Exception {
         Map<String, Object> qp = new LinkedHashMap<>();
         qp.put("timestamp", String.valueOf(System.currentTimeMillis() / 1000));
@@ -121,19 +123,24 @@ public class LingxingWarehouseStatementService {
                 .build()).readEntity(Object.class);
     }
 
+    /** 安全转换为字符串，null 返回空串。 */
     private String str(Object v) { return v != null ? String.valueOf(v) : ""; }
+    /** 安全转换为 int，null 或异常返回 0。 */
     private int intVal(Object v) {
         if (v == null) return 0;
         try { return Integer.parseInt(String.valueOf(v)); } catch (Exception e) { return 0; }
     }
+    /** 解析日期时间字符串，支持 "yyyy-MM-dd HH:mm" 和 "yyyy-MM-dd HH:mm:ss" 两种格式。 */
     private LocalDateTime parseDateTime(String s) {
         if (s == null || s.isEmpty()) return null;
         try { return s.length() == 16 ? LocalDateTime.parse(s, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
                                       : LocalDateTime.parse(s, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")); }
         catch (Exception e) { return null; }
     }
+    /** 格式化 LocalDateTime 为 "yyyy-MM-dd HH:mm"。 */
     private String fmtTime(LocalDateTime t) {
         return t != null ? t.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : "";
     }
+    /** 生成 32 位 UUID（去掉横线）。 */
     private String uuid32() { return UUID.randomUUID().toString().replace("-", ""); }
 }

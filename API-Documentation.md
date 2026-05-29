@@ -19,8 +19,7 @@
 11. [领星调试接口](#领星调试接口)
 12. [数据同步](#数据同步)
 13. [谷仓回调与同步](#谷仓回调与同步)
-14. [飞书集成](#飞书集成)
-15. [利润报表上传](#利润报表上传)
+14. [利润报表上传](#利润报表上传)
 16. [采购计划](#采购计划)
 17. [eBay 销量上传](#ebay-销量上传)
 18. [定时任务](#定时任务)
@@ -31,7 +30,7 @@
 
 ## 概述
 
-本系统为跨境电商中台系统，集成**领星（Lingxing）ERP**、**谷仓（Goodcang）WMS**、**飞书（Feishu）** 等第三方平台，提供库存管理、采购计划、销量统计、利润分析等功能。
+本系统为跨境电商中台系统，集成**领星（Lingxing）ERP**、**谷仓（Goodcang）WMS** 等第三方平台，提供库存管理、采购计划、销量统计、利润分析等功能。
 
 **基础URL：** `http://{host}:{port}`
 
@@ -52,7 +51,7 @@
 **排除路径（无需 JWT）：**
 - `/api/user/login`
 - `/api/lingxing/**`
-- `/api/feishu/**`
+
 - `/api/goodcang/**`
 
 ### API Key 认证（适用接口：`/api/lingxing/**`）
@@ -862,31 +861,6 @@
 
 ---
 
-## 飞书集成
-
-> 无需 JWT 认证
-
-### GET /api/feishu/fields — 获取飞书多维表格字段
-
-**认证：** 无需
-
-获取配置的飞书 Bitable 表格字段 Schema。
-
-**响应 (`Result<Object>`)**
-
-### GET /api/feishu/records — 获取飞书多维表格记录
-
-**认证：** 无需
-
-**查询参数：**
-
-| 参数 | 类型 | 必填 | 默认值 | 说明 |
-|------|------|------|--------|------|
-| pageSize | int | 否 | 10 | 每页记录数 |
-| pageToken | string | 否 | — | 分页游标 |
-
-**响应 (`Result<Object>`)**
-
 ---
 
 ## 利润报表上传
@@ -1173,8 +1147,7 @@
 | 谷仓 | GET | /api/goodcang/test/grn-detail | 无 | 测试 GRN 详情 |
 | 谷仓 | POST | /api/goodcang/sync-warehouse | 无 | 同步谷仓仓库 |
 | 谷仓 | POST | /api/goodcang/sync-grn | 无 | 同步谷仓 GRN |
-| 飞书 | GET | /api/feishu/fields | 无 | 飞书表格字段 |
-| 飞书 | GET | /api/feishu/records | 无 | 飞书表格记录 |
+
 | 利润报表 | POST | /api/profit-report/upload | JWT | 上传利润报表 |
 | 采购计划 | POST | /api/purchase-plan/upload | JWT | 上传采购计划 Excel |
 | 采购计划 | POST | /api/purchase-plan/create | JWT | 创建采购计划 JSON |

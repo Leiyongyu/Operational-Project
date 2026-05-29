@@ -31,6 +31,7 @@ public class GoodcangCallbackController {
         this.syncService = syncService;
     }
 
+    /** 接收谷仓推送的回调通知，确认返回 SUCCESS。 */
     @PostMapping("/callback")
     public Map<String, String> callback(@RequestBody(required = false) String rawBody) {
         LOG.info("谷仓推送收到: {}", rawBody != null ? rawBody.substring(0, Math.min(500, rawBody.length())) : "(空)");
@@ -71,13 +72,13 @@ public class GoodcangCallbackController {
         return client.getGrnDetail(code);
     }
 
-    /** 同步入库单数据 */
     /** 同步仓库信息 */
     @PostMapping("/sync-warehouse")
     public Object syncWarehouse() throws Exception {
         return syncService.syncWarehouses();
     }
 
+    /** 同步入库单数据。 */
     @PostMapping("/sync-grn")
     public Object syncGrn(
             @RequestParam(defaultValue = "2026-01-01 00:00:00") String from,

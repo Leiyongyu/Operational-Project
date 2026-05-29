@@ -29,4 +29,9 @@ public interface InventoryOverviewService {
      * 获取库存同步配置的仓库列表，供前端下拉选择。
      */
     List<WarehouseOptionItem> getWarehouseOptions();
+
+    /**
+     * 全量重算运营数据并写入快照表，供定时任务在数据同步后调用。
+     */
+    void refreshSnapshot();
 }
