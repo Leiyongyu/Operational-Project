@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @ConfigurationProperties(prefix = "goodcang")
+/** 谷仓 WMS API 配置属性：appToken、appKey（Basic Auth 凭证）。 */
 public class GoodcangProperties {
     private String appToken;
     private String appKey;

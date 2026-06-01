@@ -24,6 +24,10 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+/**
+ * 库存总览服务实现：按 SKU+站点维度聚合库存、销量、库销比、采购建议，
+ * 支持 admin 全量 / 普通用户按品牌负责人过滤，结果写入快照表并缓存30分钟。
+ */
 @Service
 public class InventoryOverviewServiceImpl implements InventoryOverviewService {
 

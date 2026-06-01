@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 
 @Data
 @TableName("brand_owner")
+/** 品牌负责人表 brand_owner */
 public class BrandOwnerEntity {
 
     @TableId(value = "id", type = IdType.AUTO)

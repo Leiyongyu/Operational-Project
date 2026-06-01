@@ -1,32 +1,39 @@
 .dashboard-page {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
 }
 
-.dashboard-card :deep(.n-card__content) {
-  padding: 20px 24px;
+.dashboard-card {
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 .dashboard-card :deep(.n-card-header) {
-  padding: 16px 24px 0;
+  padding: 18px 24px 0;
   font-weight: 600;
   font-size: 16px;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+.dashboard-card :deep(.n-card__content) {
+  padding: 16px 24px 20px;
 }
 
 .dashboard-card :deep(.n-data-table-th) {
   background: #fafafa;
   font-weight: 600;
-  color: rgba(0, 0, 0, 0.85);
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.55);
 }
 
-.dashboard-card :deep(.n-data-table-td),
-.dashboard-card :deep(.n-data-table-th) {
-  border-bottom: 1px solid #f0f0f0;
+.dashboard-card :deep(.n-data-table-td) {
+  font-size: 13px;
+  border-bottom: 1px solid #f5f5f5;
 }
 
 .filter-form {
-  margin-bottom: 16px;
+  margin-bottom: 4px;
 }
 
 .filter-form :deep(.n-form-item) {

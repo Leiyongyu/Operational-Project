@@ -16,5 +16,6 @@ public interface GoodcangWarehouseMapper extends BaseMapper<GoodcangWarehouseEnt
             "(w.name LIKE '%新泽西%' AND gw.warehouse_name LIKE '%新泽西%') OR " +
             "(w.name LIKE '%加州%' AND gw.warehouse_name LIKE '%加州%') " +
             "SET gw.wid = w.wid WHERE gw.wid = 0")
+    /** 按仓库名称关键词（德国/英国/新泽西/加州）模糊匹配领星 wid 并回填。 */
     int fillWidByFuzzyMatch();
 }

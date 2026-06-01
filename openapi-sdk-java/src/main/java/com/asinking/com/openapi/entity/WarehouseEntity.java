@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 
 @Data
 @TableName("warehouse")
+/** 仓库表 warehouse（领星同步） */
 public class WarehouseEntity {
 
     @TableId(value = "id", type = IdType.ASSIGN_ID)

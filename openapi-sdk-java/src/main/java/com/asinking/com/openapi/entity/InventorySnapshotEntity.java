@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 
 @Data
 @TableName("inventory_snapshot")
+/** 库存运营数据快照表 inventory_snapshot */
 public class InventorySnapshotEntity {
 
     @TableId("id")

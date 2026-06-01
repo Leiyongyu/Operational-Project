@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 
 @Data
 @TableName("purchase_order")
+/** 采购订单表 purchase_order（领星同步） */
 public class PurchaseOrderEntity {
     @TableId(value = "id", type = IdType.INPUT) private String id;
     @TableField("order_sn") private String orderSn;

@@ -20,6 +20,9 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
+/**
+ * 采购计划提交控制器：批量提交、分页查询、更新、删除、批量审批、Excel导出。
+ */
 @RestController
 @RequestMapping("/api/purchase-plan-submit")
 public class PurchasePlanSubmitController {
@@ -28,6 +31,7 @@ public class PurchasePlanSubmitController {
     private final UserService userService;
     private final WarehouseService warehouseService;
 
+    /** 构造器注入采购计划提交服务、用户服务、仓库服务。 */
     public PurchasePlanSubmitController(PurchasePlanSubmitService service, UserService userService,
                                         WarehouseService warehouseService) {
         this.service = service;
@@ -196,6 +200,7 @@ public class PurchasePlanSubmitController {
         os.flush();
     }
 
+    /** 根据登录账号反查负责人姓名，为空时用账号兜底。 */
     private String resolveOwnerName(String account) {
         if (account == null || account.isEmpty() || "null".equals(account)) return "";
         UserEntity user = userService.lambdaQuery()

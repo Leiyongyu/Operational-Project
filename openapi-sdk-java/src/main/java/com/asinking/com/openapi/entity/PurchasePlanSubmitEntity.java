@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 
 @Data
 @TableName("purchase_plan_submit")
+/** 采购计划提交记录表 purchase_plan_submit */
 public class PurchasePlanSubmitEntity {
 
     @TableId(value = "id", type = IdType.INPUT)

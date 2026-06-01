@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 
 @Data
 @TableName("goodcang_grn_detail")
+/** 谷仓 GRN 入库单明细表 goodcang_grn_detail */
 public class GoodcangGrnDetailEntity {
     @TableId(value = "id", type = IdType.INPUT)
     private String id;

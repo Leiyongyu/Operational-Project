@@ -6,6 +6,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/** JWT Token 黑名单：登出后将 JTI 加入内存黑名单，使 Token 即时失效。 */
 @Component
 public class TokenBlacklist {
 

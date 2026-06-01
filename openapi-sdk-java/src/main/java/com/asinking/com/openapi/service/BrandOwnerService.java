@@ -14,12 +14,16 @@ import java.util.List;
  */
 public interface BrandOwnerService extends IService<BrandOwnerEntity> {
 
+    /** 创建品牌与负责人关联记录 */
     BrandOwnerResponse create(BrandOwnerCreateRequest req);
 
+    /** 根据 ID 更新品牌负责人信息 */
     BrandOwnerResponse update(Integer id, BrandOwnerUpdateRequest req);
 
+    /** 根据 ID 查询品牌负责人详情 */
     BrandOwnerResponse detail(Integer id);
 
+    /** 分页查询品牌负责人列表，支持品牌编码和负责人名称筛选 */
     PageResult<BrandOwnerResponse> page(long page, long size, String brandCode, String ownerName);
 
     /** 查询所有去重的品牌编码 */

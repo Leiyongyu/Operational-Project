@@ -24,6 +24,7 @@ public class EbaySalesController {
     private final EbaySalesMapper mapper;
     private final InventoryOverviewService overviewService;
 
+    /** 构造器注入 eBay 销量 Mapper 和库存总览服务。 */
     public EbaySalesController(EbaySalesMapper mapper, InventoryOverviewService overviewService) {
         this.mapper = mapper;
         this.overviewService = overviewService;

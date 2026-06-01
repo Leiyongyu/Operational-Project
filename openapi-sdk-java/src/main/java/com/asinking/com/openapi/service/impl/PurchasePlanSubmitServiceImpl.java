@@ -14,6 +14,9 @@ import org.springframework.util.StringUtils;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * 采购计划提交服务实现：批量保存、权限分页查询。
+ */
 @Service
 public class PurchasePlanSubmitServiceImpl extends ServiceImpl<PurchasePlanSubmitMapper, PurchasePlanSubmitEntity>
         implements PurchasePlanSubmitService {

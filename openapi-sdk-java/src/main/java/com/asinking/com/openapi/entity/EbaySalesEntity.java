@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 
 @Data
 @TableName("ebay_sales")
+/** eBay 销量表 ebay_sales */
 public class EbaySalesEntity {
     @TableId(value = "id", type = IdType.INPUT)
     private String id;

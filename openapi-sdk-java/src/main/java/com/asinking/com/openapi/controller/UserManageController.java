@@ -30,6 +30,7 @@ public class UserManageController {
 
     private final UserService userService;
 
+    /** 构造器注入用户服务。 */
     public UserManageController(UserService userService) {
         this.userService = userService;
     }

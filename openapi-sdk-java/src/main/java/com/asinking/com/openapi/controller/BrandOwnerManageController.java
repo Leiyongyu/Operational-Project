@@ -28,6 +28,7 @@ public class BrandOwnerManageController {
 
     private final BrandOwnerService brandOwnerService;
 
+    /** 构造器注入品牌负责人服务。 */
     public BrandOwnerManageController(BrandOwnerService brandOwnerService) {
         this.brandOwnerService = brandOwnerService;
     }

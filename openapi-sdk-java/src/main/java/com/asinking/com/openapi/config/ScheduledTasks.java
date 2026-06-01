@@ -14,6 +14,7 @@ import java.time.LocalDate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+/** 定时任务调度：每日凌晨依次同步库存/谷仓/流水/采购单/采购计划，完成后刷新运营快照。 */
 @Component
 public class ScheduledTasks {
 

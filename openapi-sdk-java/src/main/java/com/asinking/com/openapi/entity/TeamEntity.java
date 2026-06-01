@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 
 @Data
 @TableName("team")
+/** 团队表 team（组长-组员关系） */
 public class TeamEntity {
 
     @TableId(value = "id", type = IdType.AUTO)

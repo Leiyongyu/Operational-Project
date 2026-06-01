@@ -36,6 +36,7 @@ public class SyncController {
     private final GoodcangSyncService goodcangSyncService;
     private final InventoryOverviewService overviewService;
 
+    /** 构造器注入所有同步相关的服务。 */
     public SyncController(LingxingWarehouseService warehouseService,
                           LingxingWarehouseInventoryService inventoryService,
                           LingxingWarehouseStatementService statementService,
@@ -146,6 +147,7 @@ public class SyncController {
         return Result.ok(goodcangSyncService.syncAllGrnDetails());
     }
 
+    /** 同步采购计划：前一天。 */
     @PostMapping("/purchase-plan")
     public Result<Object> syncPurchasePlan() throws Exception {
         LocalDate now = LocalDate.now();
@@ -159,14 +161,17 @@ public class SyncController {
         return Result.ok(purchasePlanQueryService.sync(now.minusDays(90).toString(), now.toString()));
     }
 
+    /** 将键值对交替的参数组装为 Map。 */
     private Map<String, Object> map(Object... kv) {
         Map<String, Object> m = new LinkedHashMap<>();
         for (int i = 0; i < kv.length; i += 2) m.put(String.valueOf(kv[i]), kv[i + 1]);
         return m;
     }
 
+    /** 计算从 start 到现在的耗时秒数。 */
     private String ms(long start) { return (System.currentTimeMillis() - start) / 1000 + "s"; }
 
+    /** 将异常信息包装为 Map 返回。 */
     private Map<String, Object> error(Exception e) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("error", e.getMessage());

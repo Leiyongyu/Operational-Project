@@ -24,6 +24,7 @@ public class InventoryOverviewController {
 
     private final InventoryOverviewService overviewService;
 
+    /** 构造器注入库存总览服务。 */
     public InventoryOverviewController(InventoryOverviewService overviewService) {
         this.overviewService = overviewService;
     }

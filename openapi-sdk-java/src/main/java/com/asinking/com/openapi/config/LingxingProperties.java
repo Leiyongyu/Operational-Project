@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @ConfigurationProperties(prefix = "lingxing")
+/** 领星 OpenAPI 配置属性：endpoint、appId、appSecret、超时时间、库存仓库 ID 列表。 */
 public class LingxingProperties {
 
     private String endpoint;

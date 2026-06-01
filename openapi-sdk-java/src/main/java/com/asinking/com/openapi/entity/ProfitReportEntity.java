@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 
 @Data
 @TableName("profit_report")
+/** 利润报表表 profit_report */
 public class ProfitReportEntity {
     @TableId(value = "id", type = IdType.INPUT)
     private String id;

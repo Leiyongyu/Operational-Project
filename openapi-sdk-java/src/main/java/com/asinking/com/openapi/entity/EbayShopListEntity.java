@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 
 @Data
 @TableName("ebay_shop_list")
+/** eBay 店铺列表表 ebay_shop_list */
 public class EbayShopListEntity {
 
     @TableId(value = "id", type = IdType.INPUT)

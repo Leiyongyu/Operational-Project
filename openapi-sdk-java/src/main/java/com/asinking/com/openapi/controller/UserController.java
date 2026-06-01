@@ -22,6 +22,7 @@ public class UserController {
 
     private final UserService userService;
 
+    /** 构造器注入用户服务。 */
     public UserController(UserService userService) {
         this.userService = userService;
     }

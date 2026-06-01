@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 
 @Data
 @TableName("warehouse_inventory_detail")
+/** 仓库库存明细表 warehouse_inventory_detail */
 public class WarehouseInventoryDetailEntity {
 
     @TableId(value = "id", type = IdType.ASSIGN_ID)

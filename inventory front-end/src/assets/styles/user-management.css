@@ -1,27 +1,55 @@
 .users-page {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
 }
 
-.users-card :deep(.n-card__header) {
-  padding: 16px 24px 0;
+.users-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.users-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+
+.users-card {
+  border-radius: 12px;
+  overflow: hidden;
+  transition: box-shadow 0.3s ease;
+}
+
+.users-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+.users-card :deep(.n-card-header) {
+  padding: 18px 24px 0;
   font-weight: 600;
   font-size: 16px;
+  color: rgba(0, 0, 0, 0.85);
 }
 
 .users-card :deep(.n-card__content) {
-  padding: 20px 24px;
+  padding: 16px 24px 20px;
 }
 
 .users-card :deep(.n-data-table-th) {
   background: #fafafa;
   font-weight: 600;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.55);
 }
 
-.users-card :deep(.n-data-table-td),
-.users-card :deep(.n-data-table-th) {
-  border-bottom: 1px solid #f0f0f0;
+.users-card :deep(.n-data-table-td) {
+  font-size: 13px;
+  border-bottom: 1px solid #f5f5f5;
 }
 
 .users-filters {
@@ -45,23 +73,22 @@
 }
 
 .users-filters :deep(.n-form-item-label) {
-  color: rgba(0, 0, 0, 0.65);
+  color: rgba(0, 0, 0, 0.55);
   font-size: 13px;
 }
 
 .users-filters :deep(.n-input) {
-  width: 280px;
+  width: 260px;
 }
 
-.users-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+:deep(.n-modal-card) {
+  border-radius: 14px !important;
 }
 
-.users-title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: rgba(0, 0, 0, 0.85);
+:deep(.n-modal-card .n-card-header) {
+  padding: 20px 24px 0 !important;
+}
+
+:deep(.n-tag) {
+  font-size: 12px;
 }

@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Component
+/** 前端认证配置属性：client-id、api-key、CORS 允许域名。 */
 @ConfigurationProperties(prefix = "frontend-auth")
 public class FrontendAuthProperties {
 

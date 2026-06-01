@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 
 @Data
 @TableName("`user`")
+/** 系统用户表 user */
 public class UserEntity {
 
     @TableId(value = "id", type = IdType.INPUT)

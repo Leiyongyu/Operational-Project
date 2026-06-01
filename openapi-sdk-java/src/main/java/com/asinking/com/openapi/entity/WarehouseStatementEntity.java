@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 
 @Data
 @TableName("warehouse_statement")
+/** 仓库库存流水表 warehouse_statement */
 public class WarehouseStatementEntity {
     @TableId(value = "id", type = IdType.INPUT)
     private String id;

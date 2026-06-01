@@ -26,6 +26,7 @@ public class GoodcangCallbackController {
     private final GoodcangClient client;
     private final GoodcangSyncService syncService;
 
+    /** 构造器注入谷仓客户端和同步服务。 */
     public GoodcangCallbackController(GoodcangClient client, GoodcangSyncService syncService) {
         this.client = client;
         this.syncService = syncService;

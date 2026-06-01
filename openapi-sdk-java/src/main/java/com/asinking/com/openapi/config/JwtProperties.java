@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @ConfigurationProperties(prefix = "jwt")
+/** JWT 配置属性：密钥、签发者、过期时间。 */
 public class JwtProperties {
 
     private String secret;

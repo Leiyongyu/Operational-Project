@@ -22,6 +22,7 @@ public class TeamController {
     private final TeamMapper teamMapper;
     private final BrandOwnerService brandOwnerService;
 
+    /** 构造器注入团队 Mapper 和品牌负责人服务。 */
     public TeamController(TeamMapper teamMapper, BrandOwnerService brandOwnerService) {
         this.teamMapper = teamMapper;
         this.brandOwnerService = brandOwnerService;
