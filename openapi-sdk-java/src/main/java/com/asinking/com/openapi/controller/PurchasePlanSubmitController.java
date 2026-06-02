@@ -9,6 +9,7 @@ import com.asinking.com.openapi.interceptor.JwtAuthInterceptor;
 import com.asinking.com.openapi.service.PurchasePlanSubmitService;
 import com.asinking.com.openapi.service.UserService;
 import com.asinking.com.openapi.service.WarehouseService;
+import com.asinking.com.openapi.utils.ExcelUtils;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.web.bind.annotation.*;
@@ -159,18 +160,10 @@ public class PurchasePlanSubmitController {
 
         Workbook wb = new XSSFWorkbook();
         Sheet sheet = wb.createSheet("采购计划");
-        Row header = sheet.createRow(0);
         String[] headers = {"*SKU", "店铺", "FNSKU", "供应商", "单箱数量", "箱数", "仓库", "采购方",
                 "计划采购量", "期望到货时间", "备注", "状态", "审批人", "审批时间"};
-        CellStyle headerStyle = wb.createCellStyle();
-        Font headerFont = wb.createFont();
-        headerFont.setBold(true);
-        headerStyle.setFont(headerFont);
-        for (int i = 0; i < headers.length; i++) {
-            Cell c = header.createCell(i);
-            c.setCellValue(headers[i]);
-            c.setCellStyle(headerStyle);
-        }
+        CellStyle headerStyle = ExcelUtils.createHeaderStyle(wb);
+        ExcelUtils.writeHeader(sheet, headerStyle, headers);
 
         int rowIdx = 1;
         for (PurchasePlanSubmitEntity e : records) {

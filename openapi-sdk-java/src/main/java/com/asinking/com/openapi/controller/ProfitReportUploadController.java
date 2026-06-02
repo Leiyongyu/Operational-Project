@@ -3,7 +3,7 @@ package com.asinking.com.openapi.controller;
 import com.asinking.com.openapi.common.response.Result;
 import com.asinking.com.openapi.entity.ProfitReportEntity;
 import com.asinking.com.openapi.mapper.mp.ProfitReportMapper;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.asinking.com.openapi.utils.ExcelUtils;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,7 +41,7 @@ public class ProfitReportUploadController {
         Row headerRow = sheet.getRow(0);
         List<String> headers = new ArrayList<>();
         for (Cell c : headerRow) {
-            String v = getStringValue(c);
+            String v = ExcelUtils.getCellStringOrNull(c);
             headers.add(v != null ? v.trim() : "");
         }
 
@@ -56,7 +56,7 @@ public class ProfitReportUploadController {
             for (int c = 0; c < headers.size(); c++) {
                 String h = headers.get(c);
                 if (h.isEmpty()) continue;
-                rowData.put(h, getStringValue(row.getCell(c)));
+                rowData.put(h, ExcelUtils.getCellString(row.getCell(c)));
             }
 
             String mskuVal = rowData.get("msku");
@@ -113,7 +113,7 @@ public class ProfitReportUploadController {
                 mapper.updateById(exist);
                 updated++;
             } else {
-                e.setId(uuid32());
+                e.setId(ExcelUtils.uuid32());
                 mapper.insert(e);
                 existingMap.put(key, e);
                 inserted++;
@@ -132,20 +132,6 @@ public class ProfitReportUploadController {
     private String buildKey(String msku, String shipTime, String storeName, String countryCode) {
         return (msku != null ? msku : "") + "|" + (shipTime != null ? shipTime : "") + "|"
              + (storeName != null ? storeName : "") + "|" + (countryCode != null ? countryCode : "");
-    }
-
-    /** 从 Excel 单元格读取字符串值。 */
-    private String getStringValue(Cell c) {
-        if (c == null) return null;
-        switch (c.getCellType()) {
-            case STRING: return c.getStringCellValue().trim();
-            case NUMERIC: return String.valueOf(c.getNumericCellValue());
-            case BOOLEAN: return String.valueOf(c.getBooleanCellValue());
-            case FORMULA:
-                try { return String.valueOf(c.getNumericCellValue()); }
-                catch (Exception e) { return c.getStringCellValue().trim(); }
-            default: return null;
-        }
     }
 
     /** 安全解析整数字符串，解析失败返回 0。 */
@@ -168,7 +154,4 @@ public class ProfitReportUploadController {
             return new BigDecimal(s).divide(BigDecimal.valueOf(100), 6, BigDecimal.ROUND_HALF_UP);
         } catch (Exception e) { return BigDecimal.ZERO; }
     }
-
-    /** 生成不带横线的 32 位随机 UUID。 */
-    private String uuid32() { return UUID.randomUUID().toString().replace("-", ""); }
 }

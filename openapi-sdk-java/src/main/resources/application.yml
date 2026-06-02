@@ -10,6 +10,11 @@ spring:
     multipart:
       max-file-size: 50MB
       max-request-size: 50MB
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 4
+    locations: classpath:db/migration
 mybatis-plus:
   mapper-locations: classpath*:mapper/**/*.xml
   configuration:
@@ -46,6 +51,12 @@ jwt:
   secret: "dev-secret-change-me-please-32chars!!"
   issuer: "JMH_Middle_Platform_System"
   ttl-seconds: 7200
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
 logging:
   level:
     com.asinking.com.openapi: INFO
