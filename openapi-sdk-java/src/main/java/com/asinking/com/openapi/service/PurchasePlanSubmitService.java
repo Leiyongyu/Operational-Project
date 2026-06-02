@@ -14,7 +14,7 @@ public interface PurchasePlanSubmitService extends IService<PurchasePlanSubmitEn
     /** 批量插入采购计划记录，自动生成 UUID 主键。 */
     int batchSubmit(List<PurchasePlanSubmitEntity> items);
 
-    /** 分页查询，按角色权限过滤（admin 看全部，组长看组员，组员看自己）。 */
+    /** 分页查询，按角色权限过滤（admin 看全部，组长看组员，组员看自己），支持按状态筛选。 */
     PageResult<PurchasePlanSubmitEntity> page(long page, long size, String account, String role, String ownerName,
-                                              String sku, String creator);
+                                              String sku, String creator, String status);
 }

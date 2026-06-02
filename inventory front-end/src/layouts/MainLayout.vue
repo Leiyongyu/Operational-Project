@@ -1,5 +1,5 @@
 <script setup>
-import { computed, h, ref } from 'vue'
+import { computed, h, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter, useRoute } from 'vue-router'
 import {
@@ -37,30 +37,66 @@ const platformOptions = computed(() =>
 
 const activeKey = computed(() => route.path)
 
-// 构建菜单项 —— 使用 router-link 风格的 key 由 handleMenuUpdate 统一派发
+// 当前路径对应的父菜单 key，用于切换路由时自动展开对应分组
+const parentKeyForRoute = computed(() => {
+  const map = {
+    '/dashboard': 'operations',
+    '/daily-price-tracking': 'operations',
+    '/purchases': 'purchase-group',
+    '/purchase-plan/create': 'purchase-group',
+    '/users': 'system',
+    '/brand-owners': 'system',
+  }
+  return map[route.path] || 'operations'
+})
+const expandedKeys = ref([parentKeyForRoute.value])
+
+// 路由切换时自动展开对应父菜单
+watch(parentKeyForRoute, (key) => {
+  if (!expandedKeys.value.includes(key)) {
+    expandedKeys.value = [key]
+  }
+})
+
+// 构建菜单项 —— 使用嵌套 children 实现父子模块
 const menuOptions = computed(() => {
   const base = [
     {
-      label: '运营组',
-      key: '/dashboard',
-      icon: renderMenuIcon('dashboard'),
+      label: '运营',
+      key: 'operations',
+      icon: renderMenuIcon('operations'),
+      children: [
+        { label: '补货', key: '/dashboard' },
+        { label: '每日跟价', key: '/daily-price-tracking' },
+      ],
+    },
+    {
+      label: '采购',
+      key: 'purchase-group',
+      icon: renderMenuIcon('purchase'),
+      children: [
+        { label: '采购管理', key: '/purchases' },
+      ],
     },
   ]
   if (canManageUsers.value) {
-    base.push(
-      { label: '用户管理', key: '/users', icon: renderMenuIcon('users') },
-      { label: '品牌负责人', key: '/brand-owners', icon: renderMenuIcon('brand') },
-    )
+    base.push({
+      label: '系统管理',
+      key: 'system',
+      icon: renderMenuIcon('system'),
+      children: [
+        { label: '用户管理', key: '/users' },
+        { label: '品牌负责人', key: '/brand-owners' },
+      ],
+    })
   }
-  base.push(
-    { label: '采购管理', key: '/purchases', icon: renderMenuIcon('purchase') },
-  )
   return base
 })
 
 // 路由映射表
 const routeMap = {
   '/dashboard': 'dashboard',
+  '/daily-price-tracking': 'dailyPriceTracking',
   '/users': 'users',
   '/brand-owners': 'brandOwners',
   '/purchases': 'purchases',
@@ -100,6 +136,18 @@ function handleUserSelect(key) {
 // SVG 图标渲染
 function renderMenuIcon(name) {
   const icons = {
+    // 运营 - 趋势图图标
+    operations: h(
+      'svg',
+      {
+        viewBox: '0 0 24 24', width: '20', height: '20', fill: 'none',
+        stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+      },
+      [
+        h('polyline', { points: '22 12 18 12 15 21 9 3 6 12 2 12' }),
+      ],
+    ),
+    // 补货 - 网格/仪表盘
     dashboard: h(
       'svg',
       {
@@ -113,6 +161,7 @@ function renderMenuIcon(name) {
         h('rect', { x: '14', y: '14', width: '7', height: '7', rx: '1' }),
       ],
     ),
+    // 用户管理
     users: h(
       'svg',
       {
@@ -126,6 +175,7 @@ function renderMenuIcon(name) {
         h('path', { d: 'M16 3.13a4 4 0 0 1 0 7.75' }),
       ],
     ),
+    // 采购 - 文档/订单
     purchase: h(
       'svg',
       {
@@ -139,6 +189,7 @@ function renderMenuIcon(name) {
         h('line', { x1: '16', y1: '17', x2: '8', y2: '17' }),
       ],
     ),
+    // 品牌负责人
     brand: h(
       'svg',
       {
@@ -148,6 +199,18 @@ function renderMenuIcon(name) {
       [
         h('path', { d: 'M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z' }),
         h('line', { x1: '7', y1: '7', x2: '7.01', y2: '7' }),
+      ],
+    ),
+    // 系统管理 - 齿轮/设置
+    system: h(
+      'svg',
+      {
+        viewBox: '0 0 24 24', width: '20', height: '20', fill: 'none',
+        stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+      },
+      [
+        h('circle', { cx: '12', cy: '12', r: '3' }),
+        h('path', { d: 'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z' }),
       ],
     ),
   }
@@ -190,6 +253,7 @@ async function handleLogout() {
       <div class="sider-menu-wrap">
         <NMenu
           :value="activeKey"
+          v-model:expanded-keys="expandedKeys"
           :collapsed="collapsed"
           :collapsed-width="64"
           :collapsed-icon-size="22"

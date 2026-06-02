@@ -39,7 +39,7 @@ public class PurchasePlanSubmitServiceImpl extends ServiceImpl<PurchasePlanSubmi
 
     @Override
     public PageResult<PurchasePlanSubmitEntity> page(long page, long size, String account, String role, String ownerName,
-                                                     String sku, String creator) {
+                                                     String sku, String creator, String status) {
         long p = page <= 0 ? 1 : page;
         long s = size <= 0 ? 10 : Math.min(size, 200);
         LambdaQueryWrapper<PurchasePlanSubmitEntity> wrapper = new LambdaQueryWrapper<>();
@@ -52,6 +52,10 @@ public class PurchasePlanSubmitServiceImpl extends ServiceImpl<PurchasePlanSubmi
         if (StringUtils.hasText(creator)) {
             wrapper.and(w -> w.like(PurchasePlanSubmitEntity::getCreatorOwnerName, creator.trim())
                     .or().like(PurchasePlanSubmitEntity::getCreatorAccount, creator.trim()));
+        }
+        // 状态筛选：为空或"全部"表示不过滤，否则精确匹配
+        if (StringUtils.hasText(status) && !"全部".equals(status.trim())) {
+            wrapper.eq(PurchasePlanSubmitEntity::getStatusText, status.trim());
         }
 
         if (!"admin".equalsIgnoreCase(role != null ? role.trim() : "")) {

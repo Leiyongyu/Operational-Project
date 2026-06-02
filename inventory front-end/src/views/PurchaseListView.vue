@@ -1,8 +1,8 @@
 <script setup>
-import { computed, h, onActivated, reactive, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  NButton, NCard, NDataTable, NForm, NFormItem, NInput, NInputNumber, NModal, NPopconfirm, NSpace, NTag, useDialog, useMessage,
+  NButton, NCard, NDataTable, NForm, NFormItem, NInput, NInputNumber, NModal, NPopconfirm, NSpace, NTag, NTabs, NTabPane, useDialog, useMessage,
 } from 'naive-ui'
 import { batchUpdateStatus, deleteSubmit, exportExcel, fetchSubmitPage, updateSubmit } from '@/api/purchaseSubmit'
 import { isLeader } from '@/api/team'
@@ -19,7 +19,8 @@ const total = ref(0)
 const checkedRowKeys = ref([])
 const canApprove = ref(false)
 
-const query = reactive({ page: 1, size: 10, sku: '', creator: '' })
+const query = reactive({ page: 1, size: 10, sku: '', creator: '', status: '' })
+const activeStatus = ref('全部')
 
 function handleSearch() {
   query.page = 1
@@ -29,6 +30,13 @@ function handleSearch() {
 function handleReset() {
   query.sku = ''
   query.creator = ''
+  query.page = 1
+  loadData()
+}
+
+function handleStatusChange(value) {
+  activeStatus.value = value
+  query.status = value === '全部' ? '' : value
   query.page = 1
   loadData()
 }
@@ -67,6 +75,7 @@ async function loadData() {
       page: query.page, size: query.size,
       sku: query.sku.trim() || undefined,
       creator: query.creator.trim() || undefined,
+      status: query.status || undefined,
     })
     records.value = result?.records || []
     total.value = Number(result?.total || 0)
@@ -229,7 +238,7 @@ const columns = [
   },
 ]
 
-onActivated(() => { checkPermission(); loadData() })
+onMounted(() => { checkPermission(); loadData() })
 </script>
 
 <template>
@@ -242,6 +251,14 @@ onActivated(() => { checkPermission(); loadData() })
         <NButton type="primary" @click="router.push({ name: 'purchasePlanCreate' })">创建采购计划</NButton>
       </NSpace>
     </div>
+
+    <!-- 状态 Tab -->
+    <NTabs v-model:value="activeStatus" type="bar" animated @update:value="handleStatusChange" style="margin-bottom:16px">
+      <NTabPane name="全部" tab="全部" />
+      <NTabPane name="已提交" tab="已提交" />
+      <NTabPane name="已审批" tab="已审批" />
+      <NTabPane name="已驳回" tab="已驳回" />
+    </NTabs>
 
     <!-- 搜索栏 -->
     <NCard size="small" class="dashboard-card" style="margin-bottom:16px">
