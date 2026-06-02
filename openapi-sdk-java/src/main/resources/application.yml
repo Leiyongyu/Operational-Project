@@ -10,18 +10,12 @@ spring:
     multipart:
       max-file-size: 50MB
       max-request-size: 50MB
-  flyway:
-    enabled: true
-    baseline-on-migrate: true
-    baseline-version: 4
-    locations: classpath:db/migration
   redis:
     host: ${REDIS_HOST:localhost}
     port: ${REDIS_PORT:6379}
     database: ${REDIS_DATABASE:0}
     timeout: 3000ms
 mybatis-plus:
-  mapper-locations: classpath*:mapper/**/*.xml
   configuration:
     map-underscore-to-camel-case: true
 
