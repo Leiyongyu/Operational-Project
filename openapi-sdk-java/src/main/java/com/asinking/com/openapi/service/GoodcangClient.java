@@ -42,6 +42,14 @@ public class GoodcangClient {
         return post(BASE_URL + "/base_data/get_warehouse", new LinkedHashMap<>());
     }
 
+    /** 获取商品列表（分页） */
+    public Map<String, Object> getProductList(int page, int pageSize) throws Exception {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("page", page);
+        body.put("pageSize", pageSize);
+        return post(BASE_URL + "/product/get_product_sku_list", body);
+    }
+
     /** 获取入库单明细 */
     public Map<String, Object> getGrnDetail(String receivingCode) throws Exception {
         Map<String, Object> body = new LinkedHashMap<>();

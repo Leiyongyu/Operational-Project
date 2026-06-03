@@ -8,6 +8,7 @@ import com.asinking.com.openapi.entity.*;
 import com.asinking.com.openapi.mapper.mp.*;
 import com.asinking.com.openapi.service.*;
 import com.asinking.com.openapi.utils.InventoryUtils;
+import com.asinking.com.openapi.entity.EbayProductDedupEntity;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -38,7 +39,6 @@ public class InventoryOverviewServiceImpl implements InventoryOverviewService {
     private final WarehouseInventoryDetailService inventoryService;
     private final BrandOwnerService brandOwnerService;
     private final UserService userService;
-    private final EbayProductListingService listingService;
     private final GoodcangGrnListMapper grnListMapper;
     private final GoodcangGrnDetailMapper grnDetailMapper;
     private final GoodcangWarehouseMapper gcWarehouseMapper;
@@ -47,6 +47,7 @@ public class InventoryOverviewServiceImpl implements InventoryOverviewService {
     private final EbaySalesMapper ebaySalesMapper;
     private final PurchasePlanMapper purchasePlanMapper;
     private final InventorySnapshotMapper snapshotMapper;
+    private final EbayProductDedupService dedupService;
 
     /** 快照缓存：30 分钟自动过期，同步任务跑完后主动清除 */
     private final Cache<String, List<InventoryOverviewItem>> overviewCache = CacheBuilder.newBuilder()
@@ -56,20 +57,22 @@ public class InventoryOverviewServiceImpl implements InventoryOverviewService {
 
     public InventoryOverviewServiceImpl(LingxingProperties properties, WarehouseService warehouseService,
             WarehouseInventoryDetailService inventoryService, BrandOwnerService brandOwnerService,
-            UserService userService, EbayProductListingService listingService,
+            UserService userService,
             GoodcangGrnListMapper grnListMapper,
             GoodcangGrnDetailMapper grnDetailMapper, GoodcangWarehouseMapper gcWarehouseMapper,
             PurchaseOrderMapper purchaseOrderMapper, WarehouseStatementMapper warehouseStatementMapper,
             EbaySalesMapper ebaySalesMapper, PurchasePlanMapper purchasePlanMapper,
-            InventorySnapshotMapper snapshotMapper) {
+            InventorySnapshotMapper snapshotMapper,
+            EbayProductDedupService dedupService) {
         this.properties = properties; this.warehouseService = warehouseService;
         this.inventoryService = inventoryService; this.brandOwnerService = brandOwnerService;
-        this.userService = userService; this.listingService = listingService;
+        this.userService = userService;
         this.grnListMapper = grnListMapper;
         this.grnDetailMapper = grnDetailMapper; this.gcWarehouseMapper = gcWarehouseMapper;
         this.purchaseOrderMapper = purchaseOrderMapper; this.warehouseStatementMapper = warehouseStatementMapper;
         this.ebaySalesMapper = ebaySalesMapper; this.purchasePlanMapper = purchasePlanMapper;
         this.snapshotMapper = snapshotMapper;
+        this.dedupService = dedupService;
     }
 
     // ====================================================================
@@ -190,21 +193,20 @@ public class InventoryOverviewServiceImpl implements InventoryOverviewService {
         for (Map.Entry<Integer, WarehouseEntity> e : warehouseMap.entrySet())
             widToSite.put(e.getKey(), toWarehouseLabel(e.getValue()));
 
-        // ==== 1. 基准 (groupKey, site) from ebay_product_listing ====
+        // ==== 1. 基准 (groupKey, site) from ebay_product_dedup（已去重） ====
         // 使用 extractInventoryGroupKey：去掉 PC 前缀后提取 baseSku，
         // 使 2PC-BMW-30087 和 BMW-30087 归入同一商品分组
         Map<String, String> skuProductNameMap = new LinkedHashMap<>();
         Map<String, Map<String, SkuSiteInv>> siteRowsBySku = new LinkedHashMap<>();
-        Set<String> seenPairs = new HashSet<>();
-        for (EbayProductListingEntity pl : listingService.list()) {
-            String rawSku = pl.getSku() != null ? pl.getSku().trim() : "";
+        for (EbayProductDedupEntity dedup : dedupService.listAll()) {
+            String rawSku = dedup.getSku() != null ? dedup.getSku().trim() : "";
             if (rawSku.isEmpty()) continue;
             String groupKey = InventoryUtils.extractInventoryGroupKey(rawSku);
             if (groupKey.isEmpty()) continue;
-            if (!skuProductNameMap.containsKey(groupKey) && pl.getLocalName() != null)
-                skuProductNameMap.put(groupKey, pl.getLocalName().trim());
-            String site = mapSiteName(pl.getSiteName());
-            if (!seenPairs.add(groupKey + "|" + site)) continue;
+            if (!skuProductNameMap.containsKey(groupKey) && dedup.getProductName() != null)
+                skuProductNameMap.put(groupKey, dedup.getProductName().trim());
+            String site = dedup.getSite();  // 已归一化
+            if (site == null || site.isEmpty()) continue;
             siteRowsBySku.computeIfAbsent(groupKey, k -> new LinkedHashMap<>())
                     .put(site, new SkuSiteInv(groupKey, site));
         }
@@ -218,8 +220,14 @@ public class InventoryOverviewServiceImpl implements InventoryOverviewService {
             if (wh == null) continue;
             String label = toWarehouseLabel(wh);
             if (label.isEmpty()) continue;
-            Map<String, SkuSiteInv> sm = siteRowsBySku.computeIfAbsent(baseSku, k -> new LinkedHashMap<>());
-            SkuSiteInv inv = sm.computeIfAbsent(label, k -> new SkuSiteInv(baseSku, label));
+            // 只汇总已有 eBay 刊登的 SKU，不新建
+            Map<String, SkuSiteInv> sm = siteRowsBySku.get(baseSku);
+            if (sm == null) continue;
+            SkuSiteInv inv = sm.get(label);
+            if (inv == null) {
+                inv = new SkuSiteInv(baseSku, label);
+                sm.put(label, inv);
+            }
             int s = d.getProductValidNum() != null ? d.getProductValidNum() : 0;
             int o = d.getProductOnway() != null ? d.getProductOnway() : 0;
             // 成都在途使用 quantity_receive 替代 product_onway

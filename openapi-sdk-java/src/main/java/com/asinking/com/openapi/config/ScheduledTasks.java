@@ -100,4 +100,5 @@ public class ScheduledTasks {
     public void refreshInventorySnapshot() {
         overviewService.refreshSnapshot();
     }
+
 }

@@ -46,6 +46,7 @@ const parentKeyForRoute = computed(() => {
     '/purchase-plan/create': 'purchase-group',
     '/users': 'system',
     '/brand-owners': 'system',
+    '/link-templates': 'system',
   }
   return map[route.path] || 'operations'
 })
@@ -87,6 +88,7 @@ const menuOptions = computed(() => {
       children: [
         { label: '用户管理', key: '/users' },
         { label: '品牌负责人', key: '/brand-owners' },
+        { label: '链接管理', key: '/link-templates' },
       ],
     })
   }
@@ -100,6 +102,7 @@ const routeMap = {
   '/users': 'users',
   '/brand-owners': 'brandOwners',
   '/purchases': 'purchases',
+  '/link-templates': 'linkTemplates',
 }
 
 function handleMenuUpdate(key) {

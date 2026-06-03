@@ -15,7 +15,7 @@ import {
   useMessage,
 } from 'naive-ui'
 import { useRouter } from 'vue-router'
-import { fetchProductInfo, searchSkus, searchStores, searchWarehouses } from '@/api/purchasePlan'
+import { fetchProductInfo, searchSkus, searchWarehouses } from '@/api/purchasePlan'
 import { submitPlans } from '@/api/purchaseSubmit'
 import { useAuthStore } from '@/stores/auth'
 
@@ -31,18 +31,12 @@ function isDateDisabled(ts) {
 function createEmptyRow() {
   return {
     sku: '',
-    sid: null,
-    supplier_id: null,
-    fnsku: '',
     wid: null,
-    purchaser_id: null,
     expect_arrive_time: null,
     quantity_purchase: null,
     quantity_replenish: null,
     quantity_plan: null,
     remark: '',
-    is_auto_fill_fnsku: 0,
-    is_auto_fill_store: 0,
   }
 }
 
@@ -51,10 +45,8 @@ const submitting = ref(false)
 
 // searchable options
 const skuOptions = ref([])
-const storeOptions = ref([])
 const warehouseOptions = ref([])
 const skuLoading = ref(false)
-const storeLoading = ref(false)
 const warehouseLoading = ref(false)
 
 async function onSkuSearch(keyword) {
@@ -66,17 +58,6 @@ async function onSkuSearch(keyword) {
     skuOptions.value = []
     message.error(error instanceof Error ? error.message : '加载 SKU 列表失败')
   } finally { skuLoading.value = false }
-}
-
-async function onStoreSearch(keyword) {
-  storeLoading.value = true
-  try {
-    const list = await searchStores(keyword)
-    storeOptions.value = list.map((s) => ({ label: s.seller_name, value: s.sid }))
-  } catch (error) {
-    storeOptions.value = []
-    message.error(error instanceof Error ? error.message : '加载店铺列表失败')
-  } finally { storeLoading.value = false }
 }
 
 async function onWarehouseSearch(keyword) {
@@ -108,7 +89,6 @@ async function autoFillRemark(row) {
 
 onMounted(() => {
   onSkuSearch('')
-  onStoreSearch('')
   onWarehouseSearch('')
 })
 
@@ -164,10 +144,6 @@ async function submitAll() {
         remark: String(row.remark || '').trim(),
       }
 
-      if (row.sid) item.sid = row.sid
-      if (row.supplier_id != null) item.supplierId = row.supplier_id
-      if (row.fnsku) item.fnsku = row.fnsku
-      if (row.purchaser_id != null) item.purchaserId = row.purchaser_id
       if (row.expect_arrive_time) item.expectArriveTime = row.expect_arrive_time
 
       return item
@@ -185,7 +161,7 @@ const columns = [
   {
     title: 'SKU',
     key: 'sku',
-    width: 160,
+    width: 140,
     render: (row) =>
       h(NSelect, {
         value: row.sku,
@@ -205,59 +181,9 @@ const columns = [
       }),
   },
   {
-    title: '店铺',
-    key: 'sid',
-    width: 160,
-    render: (row) =>
-      h(NSelect, {
-        value: row.sid,
-        size: 'small',
-        clearable: true,
-        filterable: true,
-        consistentMenuWidth: false,
-        options: storeOptions.value,
-        loading: storeLoading.value,
-        placeholder: '搜索店铺',
-        style: { width: '100%' },
-        onSearch: onStoreSearch,
-        'onUpdate:value': (val) => {
-          row.sid = val || ''
-        },
-      }),
-  },
-  {
-    title: '供应商ID',
-    key: 'supplier_id',
-    render: (row) =>
-      h(NInputNumber, {
-        value: row.supplier_id,
-        size: 'small',
-        min: 0,
-        showButton: false,
-        style: { width: '100%', minWidth: 0 },
-        'onUpdate:value': (val) => {
-          row.supplier_id = val
-        },
-      }),
-  },
-  {
-    title: 'FNSKU',
-    key: 'fnsku',
-    render: (row) =>
-      h(NInput, {
-        value: row.fnsku,
-        size: 'small',
-        placeholder: 'FNSKU001',
-        style: { width: '100%', minWidth: 0 },
-        'onUpdate:value': (val) => {
-          row.fnsku = val
-        },
-      }),
-  },
-  {
     title: '仓库',
     key: 'wid',
-    width: 150,
+    width: 120,
     render: (row) =>
       h(NSelect, {
         value: row.wid,
@@ -277,55 +203,42 @@ const columns = [
       }),
   },
   {
-    title: '采购方ID',
-    key: 'purchaser_id',
-    render: (row) =>
-      h(NInputNumber, {
-        value: row.purchaser_id,
-        size: 'small',
-        min: 0,
-        showButton: false,
-        style: { width: '100%', minWidth: 0 },
-        'onUpdate:value': (val) => {
-          row.purchaser_id = val
-        },
-      }),
-  },
-  {
     title: '采购员',
     key: 'purchaser_name',
+    width: 80,
     render: () =>
       h(NInput, { value: auth.ownerName, size: 'small', disabled: true, style: { width: '100%', minWidth: 0 } }),
   },
   {
     title: '采购数量',
     key: 'quantity_purchase',
+    width: 90,
     render: (row) =>
       h(NInputNumber, {
         value: row.quantity_purchase,
         size: 'small',
         min: 0,
         disabled: true,
-        placeholder: '自动填充',
         style: { width: '100%', minWidth: 0 },
       }),
   },
   {
     title: '预估补货量',
     key: 'quantity_replenish',
+    width: 100,
     render: (row) =>
       h(NInputNumber, {
         value: row.quantity_replenish,
         size: 'small',
         min: 0,
         disabled: true,
-        placeholder: '自动填充',
         style: { width: '100%', minWidth: 0 },
       }),
   },
   {
     title: '计划采购量',
     key: 'quantity_plan',
+    width: 100,
     render: (row) =>
       h(NInputNumber, {
         value: row.quantity_plan,
@@ -341,6 +254,7 @@ const columns = [
   {
     title: '期望到货时间',
     key: 'expect_arrive_time',
+    width: 140,
     render: (row) =>
       h(NDatePicker, {
         type: 'date',
@@ -358,6 +272,7 @@ const columns = [
   {
     title: '产品备注',
     key: 'remark',
+    width: 160,
     render: (row) =>
       h(NInput, {
         value: row.remark,
@@ -366,40 +281,6 @@ const columns = [
         style: { width: '100%', minWidth: 0 },
         'onUpdate:value': (val) => {
           row.remark = val
-        },
-      }),
-  },
-  {
-    title: '自动FNSKU',
-    key: 'is_auto_fill_fnsku',
-    render: (row) =>
-      h(NSelect, {
-        value: row.is_auto_fill_fnsku,
-        size: 'small',
-        options: [
-          { label: '否', value: 0 },
-          { label: '是', value: 1 },
-        ],
-        style: { width: '100%', minWidth: 0 },
-        'onUpdate:value': (val) => {
-          row.is_auto_fill_fnsku = val ?? 0
-        },
-      }),
-  },
-  {
-    title: '自动填充店铺',
-    key: 'is_auto_fill_store',
-    render: (row) =>
-      h(NSelect, {
-        value: row.is_auto_fill_store,
-        size: 'small',
-        options: [
-          { label: '否', value: 0 },
-          { label: '是', value: 1 },
-        ],
-        style: { width: '100%', minWidth: 0 },
-        'onUpdate:value': (val) => {
-          row.is_auto_fill_store = val ?? 0
         },
       }),
   },
@@ -461,7 +342,7 @@ const columns = [
         :row-key="(_, i) => i"
         :pagination="{ pageSize: 20 }"
         :max-height="500"
-        :scroll-x="1800"
+        :scroll-x="1100"
       />
     </NCard>
   </section>

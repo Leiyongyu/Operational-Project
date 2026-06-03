@@ -3,7 +3,7 @@ import { h, onMounted, ref } from 'vue'
 import {
   NButton, NCard, NCheckbox, NDataTable, NForm, NFormItem, NInput, NSelect, NSpace, NTag, useMessage,
 } from 'naive-ui'
-import { fetchDailyPriceTracking, exportDailyPriceTracking, saveRemark } from '@/api/dailyPriceTracking'
+import { fetchDailyPriceTracking, exportDailyPriceTracking, importLowestPrice, saveOe, saveRemark } from '@/api/dailyPriceTracking'
 import { fetchInventoryOverviewWarehouses } from '@/api/inventoryOverview'
 import { useDataTable } from '@/composables/useDataTable'
 
@@ -17,6 +17,7 @@ const { loading, records, total, query, filters, loadData, handleSearch, handleR
 
 // ===== 备注编辑状态（非受控 NInput 模式） =====
 const remarkInputs = {}  // key: "site|sku" → 当前输入值
+const oeInputs = {}       // key: "site|sku" → 当前 OE 输入值
 
 const tableMaxHeight = 450
 
@@ -73,6 +74,29 @@ function onReset() {
   loadData()
 }
 
+const importing = ref(false)
+
+async function handleImportPrice() {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.xlsx,.xls'
+  input.onchange = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    importing.value = true
+    try {
+      const res = await importLowestPrice(file)
+      message.success(`导入完成: 共${res.total}条, 新增${res.inserted}, 更新${res.updated}, 跳过${res.skipped}`)
+      doLoadData()
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : '导入失败')
+    } finally {
+      importing.value = false
+    }
+  }
+  input.click()
+}
+
 async function handleExport() {
   try {
     await exportDailyPriceTracking({
@@ -105,40 +129,76 @@ function renderLink(url) {
 }
 
 const columns = [
+  { type: 'selection', multiple: true, width: 40, fixed: 'left' },
   { title: '站点', key: 'site', width: 100, fixed: 'left' },
   { title: 'SKU等级', key: 'skuLevel', width: 90, fixed: 'left' },
   { title: 'SKU', key: 'sku', width: 140, fixed: 'left', ellipsis: { tooltip: true } },
-  { title: '最低价', key: 'ourLowestPrice', width: 90, align: 'right',
+  { title: '最低价', key: 'ourLowestPrice', width: 90, align: 'center',
     render: (row) => row.ourLowestPrice ?? '' },
-  { title: '跟卖价格', key: 'trackingPrice', width: 100, align: 'right',
+  { title: '跟卖价格', key: 'trackingPrice', width: 100, align: 'center',
     render: (row) => row.trackingPrice ?? '' },
-  { title: '跟卖利润率', key: 'trackingProfitMargin', width: 100, align: 'right',
+  { title: '跟卖利润率', key: 'trackingProfitMargin', width: 100, align: 'center',
     render: (row) => row.trackingProfitMargin != null ? row.trackingProfitMargin + '%' : '' },
-  { title: '底线价', key: 'floorPrice', width: 90, align: 'right',
+  { title: '底线价', key: 'floorPrice', width: 90, align: 'center',
     render: (row) => row.floorPrice ?? '' },
-  { title: '退货率', key: 'returnRate', width: 80, align: 'right',
+  { title: '退货率', key: 'returnRate', width: 80, align: 'center',
     render: (row) => row.returnRate != null ? row.returnRate + '%' : '' },
-  { title: '近3天销量', key: 'last3DaysSales', width: 100, align: 'right',
+  { title: '近3天销量', key: 'last3DaysSales', width: 100, align: 'center',
     render: (row) => row.last3DaysSales ?? '' },
-  { title: '近7天销量', key: 'last7DaysSales', width: 100, align: 'right',
+  { title: '近7天销量', key: 'last7DaysSales', width: 100, align: 'center',
     render: (row) => row.last7DaysSales ?? '' },
-  { title: '近30天销量', key: 'last30DaysSales', width: 110, align: 'right',
+  { title: '近30天销量', key: 'last30DaysSales', width: 110, align: 'center',
     render: (row) => row.last30DaysSales ?? '' },
-  { title: '近90天销量', key: 'last90DaysSales', width: 110, align: 'right',
+  { title: '近90天销量', key: 'last90DaysSales', width: 110, align: 'center',
     render: (row) => row.last90DaysSales ?? '' },
-  { title: '历史最大月销', key: 'maxMonthlySales', width: 120, align: 'right',
+  { title: '历史最大月销', key: 'maxMonthlySales', width: 120, align: 'center',
     render: (row) => row.maxMonthlySales ?? '' },
-  { title: 'eBay前台首页', key: 'ebayFrontpageUrl', width: 150, ellipsis: { tooltip: true },
+  { title: 'OE号', key: 'oeNumber', width: 140, ellipsis: { tooltip: true },
+    render: (row) => {
+      const key = `${row.site}|${row.sku}`
+      if (!(key in oeInputs)) oeInputs[key] = row.oeNumber || ''
+      return h(NInput, {
+        defaultValue: oeInputs[key],
+        size: 'tiny',
+        placeholder: '输入OE号',
+        clearable: true,
+        onUpdateValue: (v) => { oeInputs[key] = v },
+        onBlur: async () => {
+          const newVal = oeInputs[key] || ''
+          if (newVal === (row.oeNumber || '')) return
+          try {
+            const res = await saveOe(row.site, row.sku, newVal)
+            // 只更新当前行的链接，不刷新全页
+            row.oeNumber = res.oeNumber || ''
+            row.ebayFrontpageUrl = res.ebayFrontpageUrl || null
+            row.frontpageSoldUrl = res.ebayFrontpageUrl ? res.frontpageSoldUrl : null
+            message.success('OE已保存')
+          } catch (e) {
+            message.error('保存失败')
+          }
+        },
+        onClear: () => {
+          oeInputs[key] = ''
+          saveOe(row.site, row.sku, '').then(res => {
+            row.oeNumber = ''
+            row.ebayFrontpageUrl = null
+            row.frontpageSoldUrl = null
+          }).catch(() => {})
+        },
+      })
+    },
+  },
+  { title: '售前链接', key: 'ebayFrontpageUrl', width: 150, ellipsis: { tooltip: true },
     render: (row) => renderLink(row.ebayFrontpageUrl) },
-  { title: '前台已售页面', key: 'frontpageSoldUrl', width: 150, ellipsis: { tooltip: true },
+  { title: '售后链接', key: 'frontpageSoldUrl', width: 150, ellipsis: { tooltip: true },
     render: (row) => renderLink(row.frontpageSoldUrl) },
-  { title: '海外仓库存', key: 'overseasWarehouseStock', width: 110, align: 'right',
+  { title: '海外仓库存', key: 'overseasWarehouseStock', width: 110, align: 'center',
     render: (row) => row.overseasWarehouseStock ?? '' },
-  { title: '海外仓库龄', key: 'overseasWarehouseAge', width: 110, align: 'right',
+  { title: '海外仓库龄', key: 'overseasWarehouseAge', width: 110, align: 'center',
     render: (row) => row.overseasWarehouseAge != null ? row.overseasWarehouseAge + '天' : '' },
-  { title: '库销比', key: 'stockSalesRatio', width: 90, align: 'right',
-    render: (row) => row.stockSalesRatio ?? '' },
-  { title: '预估补货量', key: 'estimatedReplenish', width: 110, align: 'right',
+  { title: '库销比', key: 'stockSalesRatio', width: 90, align: 'center',
+    render: (row) => row.stockSalesRatio != null ? row.stockSalesRatio + '%' : '' },
+  { title: '预估补货量', key: 'estimatedReplenish', width: 110, align: 'center',
     render: (row) => row.estimatedReplenish ?? '' },
   { title: '品牌', key: 'brand', width: 100 },
   { title: '操作员', key: 'operator', width: 100 },
@@ -177,6 +237,7 @@ const columns = [
 ].map((c) => ({ ...c, resizable: true, minWidth: 70 }))
 
 const scrollX = columns.reduce((s, c) => s + (Number(c?.width) || 100), 0)
+const checkedRowKeys = ref([])
 </script>
 
 <template>
@@ -186,6 +247,7 @@ const scrollX = columns.reduce((s, c) => s + (Number(c?.width) || 100), 0)
       <NSpace>
         <NButton @click="doLoadData" :loading="loading">刷新</NButton>
         <NButton type="primary" @click="handleExport">导出 Excel</NButton>
+        <NButton type="warning" :loading="importing" @click="handleImportPrice">导入最低价</NButton>
       </NSpace>
     </div>
 
@@ -233,6 +295,7 @@ const scrollX = columns.reduce((s, c) => s + (Number(c?.width) || 100), 0)
         :columns="columns"
         :data="records"
         :row-key="(row) => `${row.site || ''}|${row.sku || ''}`"
+        v-model:checked-row-keys="checkedRowKeys"
         :scroll-x="scrollX"
         :max-height="tableMaxHeight"
         :pagination="{
@@ -322,6 +385,7 @@ const scrollX = columns.reduce((s, c) => s + (Number(c?.width) || 100), 0)
 :deep(.n-data-table-td) {
   font-size: 13px;
   border-bottom: 1px solid #f5f5f5;
+  text-align: center !important;
 }
 
 /* ===== 标题 ===== */

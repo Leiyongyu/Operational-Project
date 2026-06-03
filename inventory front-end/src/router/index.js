@@ -55,6 +55,12 @@ const router = createRouter({
           component: () => import('@/views/DailyPriceTrackingView.vue'),
           meta: { title: '每日跟价' },
         },
+        {
+          path: 'link-templates',
+          name: 'linkTemplates',
+          component: () => import('@/views/LinkTemplateView.vue'),
+          meta: { requiresAdmin: true, title: '链接管理' },
+        },
       ],
     },
   ],

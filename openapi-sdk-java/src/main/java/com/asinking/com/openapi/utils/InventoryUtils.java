@@ -22,7 +22,6 @@ public final class InventoryUtils {
     private static final Map<String, String> SITE_NAME_MAP = new HashMap<>();
     static {
         SITE_NAME_MAP.put("ebay汽配", "美国");
-        SITE_NAME_MAP.put("法国", "德国");
     }
 
     private static final Map<String, String> CURRENCY_TO_SITE = new HashMap<>();
@@ -114,10 +113,15 @@ public final class InventoryUtils {
     // 站点/仓库标签映射
     // ====================================================================
 
-    /** 刊登站点名 → 站点标签 */
+    /** 刊登站点名 → 站点标签（忽略大小写匹配） */
     public static String mapSiteName(String siteName) {
         String t = siteName != null ? siteName.trim() : "";
-        return StringUtils.hasText(t) ? SITE_NAME_MAP.getOrDefault(t, t) : "";
+        if (!StringUtils.hasText(t)) return "";
+        // 大小写不敏感匹配（eBay汽配 / ebay汽配 / EBAY汽配 → 美国）
+        for (Map.Entry<String, String> e : SITE_NAME_MAP.entrySet()) {
+            if (e.getKey().equalsIgnoreCase(t)) return e.getValue();
+        }
+        return t;
     }
 
     /** 币种 → 站点标签 */
@@ -137,6 +141,34 @@ public final class InventoryUtils {
         if (warehouseName.contains("-DE") || warehouseName.contains("德国")) return "德国";
         if (warehouseName.contains("-UK") || warehouseName.contains("英国")) return "英国";
         return "";
+    }
+
+    // ====================================================================
+    // eBay 售前/售后链接
+    // ====================================================================
+
+    /** 根据站点生成 eBay 售前链接 */
+    public static String ebayPresaleUrl(String site, String sku) {
+        String base = ebayBaseUrl(site);
+        if (base == null) return null;
+        String sop = "美国".equals(site) ? "&_fcid=1&_sop=15" : "&_sop=15";
+        return base + "/sch/i.html?_nkw=" + sku + "&_sacat=0&_from=R40" + sop;
+    }
+
+    /** 根据站点生成 eBay 售后（已售）链接 */
+    public static String ebaySoldUrl(String site, String sku) {
+        String base = ebayBaseUrl(site);
+        if (base == null) return null;
+        String extra = "德国".equals(site) ? "&_sop=10" : "&_fcid=1";
+        return base + "/sch/i.html?_nkw=" + sku
+                + "&_sacat=0&_from=R40&LH_Complete=1&rt=nc&LH_Sold=1" + extra;
+    }
+
+    private static String ebayBaseUrl(String site) {
+        if ("美国".equals(site)) return "https://www.ebay.com";
+        if ("英国".equals(site)) return "https://www.ebay.co.uk";
+        if ("德国".equals(site)) return "https://www.ebay.de";
+        return null;
     }
 
     // ====================================================================

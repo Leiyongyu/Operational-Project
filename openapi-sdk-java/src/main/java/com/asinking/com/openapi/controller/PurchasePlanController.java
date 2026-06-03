@@ -4,8 +4,8 @@ import com.asinking.com.openapi.common.response.Result;
 import com.asinking.com.openapi.dto.response.InventoryOverviewItem;
 import com.asinking.com.openapi.dto.response.PurchasePlanCreateResponse;
 import com.asinking.com.openapi.entity.WarehouseEntity;
-import com.asinking.com.openapi.mapper.mp.EbayProductListingMapper;
 import com.asinking.com.openapi.mapper.mp.EbayShopListMapper;
+import com.asinking.com.openapi.service.EbayProductDedupService;
 import com.asinking.com.openapi.service.InventoryOverviewService;
 import com.asinking.com.openapi.service.LingxingPurchasePlanService;
 import com.asinking.com.openapi.service.WarehouseService;
@@ -24,22 +24,21 @@ import java.util.stream.Collectors;
 public class PurchasePlanController {
 
     private final LingxingPurchasePlanService service;
-    private final EbayProductListingMapper ebayProductMapper;
     private final EbayShopListMapper ebayShopMapper;
     private final WarehouseService warehouseService;
     private final InventoryOverviewService overviewService;
+    private final EbayProductDedupService dedupService;
 
-    /** 构造器注入。 */
     public PurchasePlanController(LingxingPurchasePlanService service,
-                                  EbayProductListingMapper ebayProductMapper,
                                   EbayShopListMapper ebayShopMapper,
                                   WarehouseService warehouseService,
-                                  InventoryOverviewService overviewService) {
+                                  InventoryOverviewService overviewService,
+                                  EbayProductDedupService dedupService) {
         this.service = service;
-        this.ebayProductMapper = ebayProductMapper;
         this.ebayShopMapper = ebayShopMapper;
         this.warehouseService = warehouseService;
         this.overviewService = overviewService;
+        this.dedupService = dedupService;
     }
 
     /** 上传 Excel 文件并创建采购计划。 */
@@ -54,15 +53,13 @@ public class PurchasePlanController {
         return Result.ok(service.createFromJson(data));
     }
 
-    /** 从 eBay listing 中搜索 local_sku（截取前3段），用于前端下拉提示。 */
+    /** 从去重表搜索 SKU，已去重，直接返回。 */
     @GetMapping("/skus")
     public Result<List<Map<String, Object>>> searchSkus(@RequestParam(defaultValue = "") String keyword) {
         Set<String> skus = new LinkedHashSet<>();
-        for (var e : ebayProductMapper.selectList(null)) {
-            String s = e.getLocalSku();
+        for (var e : dedupService.listAll()) {
+            String s = e.getSku();
             if (s == null || s.isEmpty()) continue;
-            String[] parts = s.split("-");
-            if (parts.length >= 3) s = parts[0] + "-" + parts[1] + "-" + parts[2];
             if (keyword.isEmpty() || s.toLowerCase().contains(keyword.toLowerCase()))
                 skus.add(s);
         }

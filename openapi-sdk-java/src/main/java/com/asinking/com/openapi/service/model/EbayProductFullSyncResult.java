@@ -7,16 +7,22 @@ public class EbayProductFullSyncResult {
     private int processed;
     private int pages;
     private int remoteTotal;
+    private int dedupCount;
 
     public EbayProductFullSyncResult() {
     }
 
     public EbayProductFullSyncResult(int inserted, int updated, int processed, int pages, int remoteTotal) {
+        this(inserted, updated, processed, pages, remoteTotal, 0);
+    }
+
+    public EbayProductFullSyncResult(int inserted, int updated, int processed, int pages, int remoteTotal, int dedupCount) {
         this.inserted = inserted;
         this.updated = updated;
         this.processed = processed;
         this.pages = pages;
         this.remoteTotal = remoteTotal;
+        this.dedupCount = dedupCount;
     }
 
     public int getInserted() {
@@ -58,4 +64,7 @@ public class EbayProductFullSyncResult {
     public void setRemoteTotal(int remoteTotal) {
         this.remoteTotal = remoteTotal;
     }
+
+    public int getDedupCount() { return dedupCount; }
+    public void setDedupCount(int dedupCount) { this.dedupCount = dedupCount; }
 }

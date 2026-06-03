@@ -80,6 +80,8 @@ const replenishColumns = [
   { title: '产品名称', key: 'productName', width: 160, ellipsis: true, fixed: 'left' },
   { title: '近30利润', key: 'last30DaysProfit', width: 100,
     render: (row) => row.last30DaysProfit ?? '' },
+  { title: '退货率', key: 'returnRate', width: 90,
+    render: (row) => row.returnRate ?? '' },
   { title: '海外在途', key: 'overseasOnway', width: 90,
     render: (row) => row.overseasOnway ?? '' },
   { title: '海外可售', key: 'overseasSellable', width: 90,
@@ -230,6 +232,14 @@ async function handleUploadExcel() {
   input.click()
 }
 
+function handleExportGoodcangProducts() {
+  const base = import.meta.env.VITE_API_BASE_URL || window.location.origin
+  const a = document.createElement('a')
+  a.href = `${base}/api/goodcang/export-product-list`
+  a.download = '谷仓商品列表.xlsx'
+  a.click()
+}
+
 function handleReset() {
   filters.warehouseNames = []
   filters.sku = ''
@@ -293,6 +303,9 @@ function renderWarehouseOption({ node, option, selected }) {
           </NButton>
           <NButton size="small" type="info" :loading="uploading" @click="handleUploadExcel">
             上传销量报表
+          </NButton>
+          <NButton size="small" @click="handleExportGoodcangProducts">
+            导出谷仓商品
           </NButton>
         </NSpace>
       </template>
@@ -463,16 +476,18 @@ function renderWarehouseOption({ node, option, selected }) {
   padding: 8px 16px 12px;
 }
 
-.dashboard-card :deep(.n-data-table-th) {
+:deep(.n-data-table-th) {
   background: #fafafa;
   font-weight: 600;
   font-size: 12px;
   color: rgba(0, 0, 0, 0.55);
+  text-align: center !important;
 }
 
-.dashboard-card :deep(.n-data-table-td) {
+:deep(.n-data-table-td) {
   font-size: 13px;
   border-bottom: 1px solid #f5f5f5;
+  text-align: center !important;
 }
 
 .filter-form { margin-bottom: 0; }

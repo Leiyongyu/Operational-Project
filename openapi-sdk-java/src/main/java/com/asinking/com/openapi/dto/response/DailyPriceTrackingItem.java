@@ -81,4 +81,7 @@ public class DailyPriceTrackingItem {
 
     /** 备注 */
     private String remark;
+
+    /** OE 号（默认来自 ebay_product_listing.oe，用户可手动覆盖并保存） */
+    private String oeNumber;
 }

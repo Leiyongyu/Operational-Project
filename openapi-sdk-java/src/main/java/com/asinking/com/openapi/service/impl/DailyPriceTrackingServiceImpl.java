@@ -1,13 +1,13 @@
 package com.asinking.com.openapi.service.impl;
 
 import com.asinking.com.openapi.common.response.PageResult;
+import com.asinking.com.openapi.service.EbayLinkTemplateService;
 import com.asinking.com.openapi.config.LingxingProperties;
 import com.asinking.com.openapi.dto.response.DailyPriceTrackingItem;
 import com.asinking.com.openapi.entity.*;
 import com.asinking.com.openapi.mapper.mp.*;
 import com.asinking.com.openapi.service.*;
 import com.asinking.com.openapi.utils.InventoryUtils;
-import com.asinking.com.openapi.service.DailyPriceTrackingRemarkService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -20,55 +20,55 @@ import java.util.stream.Collectors;
 
 /**
  * 每日跟价服务实现：独立于补货页的数据查询与计算。
- * 直接从各数据源查询，使用 {@link InventoryUtils} 共享工具方法，
- * 不再依赖 {@link InventoryOverviewService#buildOverview()}。
+ * 直接从各数据源查询，使用 {@link InventoryUtils} 共享工具方法。
+ * 预估补货量直接从补货页的采购数量匹配（按站点+去除PC前缀的SKU）。
  */
 @Service
 public class DailyPriceTrackingServiceImpl implements DailyPriceTrackingService {
 
     private final LingxingProperties lingxingProperties;
-    private final EbayProductListingService listingService;
     private final WarehouseService warehouseService;
     private final WarehouseInventoryDetailService inventoryService;
     private final EbaySalesMapper ebaySalesMapper;
     private final BrandOwnerService brandOwnerService;
-    private final PurchaseOrderMapper purchaseOrderMapper;
-    private final WarehouseStatementMapper warehouseStatementMapper;
     private final GoodcangGrnListMapper grnListMapper;
     private final GoodcangGrnDetailMapper grnDetailMapper;
     private final GoodcangWarehouseMapper gcWarehouseMapper;
-    private final DailyPriceTrackingRemarkService remarkService;
+    private final InventoryOverviewService overviewService;
+    private final LowestPriceRecordService lowestPriceService;
+    private final EbayProductDedupService dedupService;
+    private final EbayLinkTemplateService linkTemplateService;
 
     public DailyPriceTrackingServiceImpl(LingxingProperties lingxingProperties,
-                                         EbayProductListingService listingService,
                                          WarehouseService warehouseService,
                                          WarehouseInventoryDetailService inventoryService,
                                          EbaySalesMapper ebaySalesMapper,
                                          BrandOwnerService brandOwnerService,
-                                         PurchaseOrderMapper purchaseOrderMapper,
-                                         WarehouseStatementMapper warehouseStatementMapper,
                                          GoodcangGrnListMapper grnListMapper,
                                          GoodcangGrnDetailMapper grnDetailMapper,
                                          GoodcangWarehouseMapper gcWarehouseMapper,
-                                         DailyPriceTrackingRemarkService remarkService) {
+                                         InventoryOverviewService overviewService,
+                                         LowestPriceRecordService lowestPriceService,
+                                         EbayProductDedupService dedupService,
+                                         EbayLinkTemplateService linkTemplateService) {
         this.lingxingProperties = lingxingProperties;
-        this.listingService = listingService;
         this.warehouseService = warehouseService;
         this.inventoryService = inventoryService;
         this.ebaySalesMapper = ebaySalesMapper;
         this.brandOwnerService = brandOwnerService;
-        this.purchaseOrderMapper = purchaseOrderMapper;
-        this.warehouseStatementMapper = warehouseStatementMapper;
         this.grnListMapper = grnListMapper;
         this.grnDetailMapper = grnDetailMapper;
         this.gcWarehouseMapper = gcWarehouseMapper;
-        this.remarkService = remarkService;
+        this.overviewService = overviewService;
+        this.lowestPriceService = lowestPriceService;
+        this.dedupService = dedupService;
+        this.linkTemplateService = linkTemplateService;
     }
 
     @Override
     public PageResult<DailyPriceTrackingItem> page(long page, long size,
                                                    String site, String sku, String brand, String operator) {
-        // 1. 独立计算每日跟价全量数据
+        // 1. 获取全量数据（快照优先 → 实时计算兜底）
         List<DailyPriceTrackingItem> allRows = computeDailyPriceTracking();
 
         // 2. 内存筛选
@@ -96,9 +96,13 @@ public class DailyPriceTrackingServiceImpl implements DailyPriceTrackingService 
     // 核心计算逻辑
     // ====================================================================
 
+    // ====================================================================
+    // 核心计算逻辑（实时，无快照）
+    // ====================================================================
+
     /**
      * 独立计算每日跟价数据，不再复用 InventoryOverviewService。
-     * 数据流程：基准 SKU → 库存 → 销量 → 采购周期 → 出库时间 → 组装。
+     * 数据流程：基准 SKU → 库存 → 销量 → 出库时间 → 组装。
      */
     private List<DailyPriceTrackingItem> computeDailyPriceTracking() {
 
@@ -116,19 +120,17 @@ public class DailyPriceTrackingServiceImpl implements DailyPriceTrackingService 
             widToSite.put(e.getKey(), InventoryUtils.whNameToSite(e.getValue().getName()));
         }
 
-        // ==== 2. 基准 (baseSku → 站点列表 + 产品名) from ebay_product_listing ====
+        // ==== 2. 基准 (baseSku → 站点列表 + 产品名 + OE) from ebay_product_dedup（已去重） ====
         Map<String, String> skuProductNameMap = new LinkedHashMap<>();
         Map<String, Set<String>> skuSitesMap = new LinkedHashMap<>(); // baseSku → Set<siteLabel>
-        for (EbayProductListingEntity pl : listingService.list()) {
-            String baseSku = InventoryUtils.extractBaseSku(pl.getSku());
-            if (baseSku.isEmpty()) continue;
-            if (!skuProductNameMap.containsKey(baseSku) && pl.getLocalName() != null) {
-                skuProductNameMap.put(baseSku, pl.getLocalName().trim());
+        for (EbayProductDedupEntity dedup : dedupService.listAll()) {
+            String baseSku = dedup.getSku();
+            String siteLabel = dedup.getSite();
+            if (baseSku == null || baseSku.isEmpty() || siteLabel == null || siteLabel.isEmpty()) continue;
+            if (!skuProductNameMap.containsKey(baseSku) && dedup.getProductName() != null) {
+                skuProductNameMap.put(baseSku, dedup.getProductName().trim());
             }
-            String siteLabel = InventoryUtils.mapSiteName(pl.getSiteName());
-            if (!siteLabel.isEmpty()) {
-                skuSitesMap.computeIfAbsent(baseSku, k -> new LinkedHashSet<>()).add(siteLabel);
-            }
+            skuSitesMap.computeIfAbsent(baseSku, k -> new LinkedHashSet<>()).add(siteLabel);
         }
 
         // ==== 3. 海外可售库存 (仅 type=3 海外仓) ====
@@ -182,44 +184,7 @@ public class DailyPriceTrackingServiceImpl implements DailyPriceTrackingService 
                         e -> StringUtils.hasText(e.getOwnerName()) ? e.getOwnerName().trim() : "",
                         (a, b) -> a));
 
-        // ==== 6. 采购周期 from purchase_order + warehouse_statement ====
-        Map<String, LocalDate> orderTimeMap = new LinkedHashMap<>();
-        for (PurchaseOrderEntity po : purchaseOrderMapper.selectList(null)) {
-            String orderSku = po.getItemSku(), whName = po.getWareHouseName();
-            if (orderSku == null || orderSku.trim().isEmpty() || whName == null || whName.trim().isEmpty()) continue;
-            String siteLabel = InventoryUtils.whNameToSite(whName.trim());
-            if (siteLabel.isEmpty()) continue;
-            String key = siteLabel + "|" + InventoryUtils.extractBaseSku(orderSku.trim());
-            if (po.getOrderTime() != null) {
-                LocalDate od = po.getOrderTime().toLocalDate();
-                LocalDate ex = orderTimeMap.get(key);
-                if (ex == null || od.isAfter(ex)) orderTimeMap.put(key, od);
-            }
-        }
-
-        Map<String, LocalDate> inboundTimeMap = new LinkedHashMap<>();
-        for (WarehouseStatementEntity ws : warehouseStatementMapper.selectList(
-                new LambdaQueryWrapper<WarehouseStatementEntity>().eq(WarehouseStatementEntity::getType, 22))) {
-            String wsSku = ws.getSku(), whName = ws.getWareHouseName();
-            if (wsSku == null || wsSku.trim().isEmpty() || whName == null || whName.trim().isEmpty()) continue;
-            if (ws.getOptTime() == null) continue;
-            String siteLabel = InventoryUtils.whNameToSite(whName.trim());
-            if (siteLabel.isEmpty()) continue;
-            String key = siteLabel + "|" + InventoryUtils.extractBaseSku(wsSku.trim());
-            LocalDate od = ws.getOptTime().toLocalDate();
-            LocalDate ex = inboundTimeMap.get(key);
-            if (ex == null || od.isBefore(ex)) inboundTimeMap.put(key, od);
-        }
-
-        Map<String, Integer> purchaseCycleMap = new LinkedHashMap<>();
-        for (String k : orderTimeMap.keySet()) {
-            LocalDate od = orderTimeMap.get(k), ib = inboundTimeMap.get(k);
-            if (od != null && ib != null && !ib.isBefore(od)) {
-                purchaseCycleMap.put(k, (int) java.time.temporal.ChronoUnit.DAYS.between(od, ib));
-            }
-        }
-
-        // ==== 7. 出库时间 from goodcang GRN ====
+        // ==== 6. 出库时间 from goodcang GRN ====
         List<GoodcangGrnDetailEntity> allGrnDetails = grnDetailMapper.selectList(null);
         Set<String> allReceivingCodes = new HashSet<>();
         for (GoodcangGrnDetailEntity d : allGrnDetails) {
@@ -292,7 +257,11 @@ public class DailyPriceTrackingServiceImpl implements DailyPriceTrackingService 
 
                 // 库销比
                 int d30 = item.getLast30DaysSales();
-                item.setStockSalesRatio(InventoryUtils.safeDivide(overseasStock, d30));
+                // 库销比 = 海外仓库存 / 近30天销量 * 100（百分比），四舍五入2位小数
+                BigDecimal ratio = InventoryUtils.safeDivide(overseasStock, d30);
+                item.setStockSalesRatio(ratio.compareTo(BigDecimal.ZERO) > 0
+                        ? ratio.multiply(BigDecimal.valueOf(100)).setScale(2, RoundingMode.HALF_UP)
+                        : BigDecimal.ZERO);
 
                 // 海外仓库龄（取该站点下所有仓库的最新出库时间 → 距今多少天）
                 if (!mid.isEmpty() && !siteLabel.isEmpty()) {
@@ -313,17 +282,7 @@ public class DailyPriceTrackingServiceImpl implements DailyPriceTrackingService 
                     }
                 }
 
-                // 采购周期
-                Integer pc = purchaseCycleMap.get(siteLabel + "|" + baseSku);
-                Integer od = item.getOverseasWarehouseAge();
-
-                // 预估补货量 = 近3月均销量 × (采购周期 + 出库天数) / 30
-                if (pc != null && od != null && d30 > 0) {
-                    BigDecimal avg = BigDecimal.valueOf(item.getLast90DaysSales())
-                            .divide(BigDecimal.valueOf(3), 4, RoundingMode.HALF_UP);
-                    item.setEstimatedReplenish(avg.multiply(BigDecimal.valueOf((pc + od) / 30.0))
-                            .setScale(0, RoundingMode.HALF_UP).intValue());
-                }
+                // 预估补货量：直接从补货页采购数量匹配（按站点+去除PC前缀的SKU）
 
                 // SKU 等级（profitRate 暂为 0，因为 last30DaysProfit 数据源未接入）
                 item.setSkuLevel(InventoryUtils.calcProductLevel(d30, 0));
@@ -333,22 +292,88 @@ public class DailyPriceTrackingServiceImpl implements DailyPriceTrackingService 
                 item.setOperator(InventoryUtils.matchOwner(baseSku, ownerByBrand));
 
                 // 预留字段
-                item.setOurLowestPrice(null);
+                item.setOurLowestPrice(null);  // 后面批量填充
                 item.setTrackingPrice(null);
                 item.setTrackingProfitMargin(null);
                 item.setFloorPrice(null);
                 item.setReturnRate(null);
-                item.setEbayFrontpageUrl(null);
-                item.setFrontpageSoldUrl(null);
+                // OE 号：从去重表获取（Step 11 批量填充）
+
+                // eBay 售前/售后链接（从链接模板表取，{oe} 替换为实际 OE 号）
+                String oe = item.getOeNumber();
+                item.setEbayFrontpageUrl(linkTemplateService.buildPresaleUrl(siteLabel, oe != null ? oe : ""));
+                item.setFrontpageSoldUrl(linkTemplateService.buildSoldUrl(siteLabel, oe != null ? oe : ""));
                 item.setRemark("");  // 默认空，下面批量填充
 
                 result.add(item);
             }
         }
 
-        // ==== 9. 批量填充备注（按 site|sku 匹配） ====
+        // ==== 9. 从补货页匹配采购数量 → 预估补货量 ====
+        // 匹配键: site + "|" + stripPcPrefix(baseSku)
+        // 例如每日跟价的 "2PC-BMW-30087" → 去掉PC → "BMW-30087" → 匹配补货页同站点同SKU的采购数量
+        Map<String, Integer> purchaseQtyMap = new LinkedHashMap<>();
+        try {
+            List<com.asinking.com.openapi.dto.response.InventoryOverviewItem> overviewItems =
+                    overviewService.buildOverview();
+            if (overviewItems != null) {
+                for (com.asinking.com.openapi.dto.response.InventoryOverviewItem ov : overviewItems) {
+                    if (ov.getPurchaseQuantity() != null) {
+                        String key = ov.getWarehouseNames() + "|" + ov.getSku();
+                        purchaseQtyMap.put(key, ov.getPurchaseQuantity().intValue());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // 补货页数据不可用时忽略
+        }
+        for (DailyPriceTrackingItem item : result) {
+            String matchKey = item.getSite() + "|" + InventoryUtils.stripPcPrefix(item.getSku());
+            Integer qty = purchaseQtyMap.get(matchKey);
+            if (qty != null) {
+                item.setEstimatedReplenish(qty);
+            }
+        }
+
+        // ==== 10. 批量填充最低价（按 site|sku 匹配 lowest_price_record 表） ====
+        Map<String, java.math.BigDecimal> lowestPriceMap = lowestPriceService.batchGetLowestPrices(
+                result.stream().map(r -> r.getSite() + "|" + r.getSku()).collect(Collectors.toList()));
+        for (DailyPriceTrackingItem item : result) {
+            java.math.BigDecimal lp = lowestPriceMap.get(item.getSite() + "|" + item.getSku());
+            if (lp != null) {
+                item.setOurLowestPrice(lp);
+            }
+        }
+
+        // ==== 11. 批量填充 OE 号（从去重表，并生成链接） ====
+        Map<String, String> customOeMap = dedupService.batchGetOeNumbers(
+                result.stream().map(r -> r.getSite() + "|" + r.getSku()).collect(Collectors.toList()));
+        for (DailyPriceTrackingItem item : result) {
+            String key = item.getSite() + "|" + item.getSku();
+            String customOe = customOeMap.get(key);
+            if (org.springframework.util.StringUtils.hasText(customOe)) {
+                item.setOeNumber(customOe);
+                // 用自定义 OE 重新生成链接
+                item.setEbayFrontpageUrl(linkTemplateService.buildPresaleUrl(item.getSite(), customOe));
+                item.setFrontpageSoldUrl(linkTemplateService.buildSoldUrl(item.getSite(), customOe));
+            }
+        }
+
+        // ==== 12. 兜底：确保每行都有链接（OE为空也用空字符串替换{oe}） ====
+        for (DailyPriceTrackingItem item : result) {
+            if (item.getEbayFrontpageUrl() == null) {
+                String oe = item.getOeNumber();
+                item.setEbayFrontpageUrl(linkTemplateService.buildPresaleUrl(item.getSite(), oe != null ? oe : ""));
+            }
+            if (item.getFrontpageSoldUrl() == null) {
+                String oe = item.getOeNumber();
+                item.setFrontpageSoldUrl(linkTemplateService.buildSoldUrl(item.getSite(), oe != null ? oe : ""));
+            }
+        }
+
+        // ==== 13. 批量填充备注（从 ebay_product_dedup 表） ====
         if (!result.isEmpty()) {
-            Map<String, String> remarkMap = remarkService.batchGetRemarks(
+            Map<String, String> remarkMap = dedupService.batchGetRemarks(
                     result.stream().map(r -> r.getSite() + "|" + r.getSku()).collect(Collectors.toList()));
             for (DailyPriceTrackingItem item : result) {
                 String key = item.getSite() + "|" + item.getSku();

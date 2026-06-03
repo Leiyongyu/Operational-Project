@@ -159,8 +159,7 @@ public class PurchasePlanSubmitController {
 
         Workbook wb = new XSSFWorkbook();
         Sheet sheet = wb.createSheet("采购计划");
-        String[] headers = {"*SKU", "店铺", "FNSKU", "供应商", "单箱数量", "箱数", "仓库", "采购方",
-                "计划采购量", "期望到货时间", "备注", "状态", "审批人", "审批时间"};
+        String[] headers = {"*SKU", "仓库", "计划采购量", "期望到货时间", "备注", "状态", "审批人", "审批时间"};
         CellStyle headerStyle = ExcelUtils.createHeaderStyle(wb);
         ExcelUtils.writeHeader(sheet, headerStyle, headers);
 
@@ -168,19 +167,13 @@ public class PurchasePlanSubmitController {
         for (PurchasePlanSubmitEntity e : records) {
             Row row = sheet.createRow(rowIdx++);
             row.createCell(0).setCellValue(e.getSku() != null ? e.getSku() : "");
-            row.createCell(1).setCellValue(e.getSid() != null ? e.getSid() : "");
-            row.createCell(2).setCellValue(e.getFnsku() != null ? e.getFnsku() : "");
-            row.createCell(3).setCellValue(e.getSupplierId() != null ? String.valueOf(e.getSupplierId()) : "");
-            row.createCell(4).setCellValue("");
-            row.createCell(5).setCellValue("");
-            row.createCell(6).setCellValue(e.getWarehouseName() != null ? e.getWarehouseName() : "");
-            row.createCell(7).setCellValue(e.getPurchaserId() != null ? String.valueOf(e.getPurchaserId()) : "");
-            row.createCell(8).setCellValue(e.getQuantityPlan() != null ? e.getQuantityPlan() : 0);
-            row.createCell(9).setCellValue(e.getExpectArriveTime() != null ? e.getExpectArriveTime() : "");
-            row.createCell(10).setCellValue(e.getRemark() != null ? e.getRemark() : "");
-            row.createCell(11).setCellValue(e.getStatusText() != null ? e.getStatusText() : "已提交");
-            row.createCell(12).setCellValue(e.getApprover() != null ? e.getApprover() : "");
-            row.createCell(13).setCellValue(e.getApproveTime() != null
+            row.createCell(1).setCellValue(e.getWarehouseName() != null ? e.getWarehouseName() : "");
+            row.createCell(2).setCellValue(e.getQuantityPlan() != null ? e.getQuantityPlan() : 0);
+            row.createCell(3).setCellValue(e.getExpectArriveTime() != null ? e.getExpectArriveTime() : "");
+            row.createCell(4).setCellValue(e.getRemark() != null ? e.getRemark() : "");
+            row.createCell(5).setCellValue(e.getStatusText() != null ? e.getStatusText() : "已提交");
+            row.createCell(6).setCellValue(e.getApprover() != null ? e.getApprover() : "");
+            row.createCell(7).setCellValue(e.getApproveTime() != null
                     ? e.getApproveTime().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "");
         }
 

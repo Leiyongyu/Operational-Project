@@ -20,10 +20,6 @@ public class PurchasePlanSubmitEntity {
     @TableField("quantity_purchase") private java.math.BigDecimal quantityPurchase;
     @TableField("remark") private String remark;
     @TableField("expect_arrive_time") private String expectArriveTime;
-    @TableField("sid") private String sid;
-    @TableField("supplier_id") private Integer supplierId;
-    @TableField("fnsku") private String fnsku;
-    @TableField("purchaser_id") private Integer purchaserId;
     @TableField("plan_sn") private String planSn;
     @TableField("ppg_sn") private String ppgSn;
     @TableField("status_text") private String statusText;

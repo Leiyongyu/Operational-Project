@@ -10,6 +10,23 @@ export function saveRemark(site, sku, remark) {
   return apiPost('/api/daily-price-tracking/remark', { site, sku, remark })
 }
 
+/** 刷新每日跟价快照（全量重算） */
+export function refreshDailyPriceTrackingSnapshot() {
+  return apiPost('/api/daily-price-tracking/refresh-snapshot')
+}
+
+/** 保存或更新 OE 号 */
+export function saveOe(site, sku, oeNumber) {
+  return apiPost('/api/daily-price-tracking/oe', { site, sku, oeNumber })
+}
+
+/** 导入最低价 Excel */
+export function importLowestPrice(file) {
+  const form = new FormData()
+  form.append('file', file)
+  return apiPost('/api/daily-price-tracking/import-lowest-price', form)
+}
+
 /** 上传 Excel 导入 */
 export function uploadDailyPriceTracking(file) {
   const form = new FormData()

@@ -5,25 +5,28 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 每日跟价备注表 daily_price_tracking_remark。
- * 按 (site, sku) 唯一存储备注，与每日跟价页面的站点+SKU 维度一一对应。
+ * eBay 商品去重表 ebay_product_dedup。
+ * 从 ebay_product_listing 按 (site, sku) 去重后存储，OE 号由用户维护。
  */
 @Data
-@TableName("daily_price_tracking_remark")
-public class DailyPriceTrackingRemarkEntity {
+@TableName("ebay_product_dedup")
+public class EbayProductDedupEntity {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    /** 站点（国家标签：美国/德国/英国） */
     @TableField("site")
     private String site;
 
-    /** SKU 编码（baseSku） */
     @TableField("sku")
     private String sku;
 
-    /** 备注内容 */
+    @TableField("oe_number")
+    private String oeNumber;
+
+    @TableField("product_name")
+    private String productName;
+
     @TableField("remark")
     private String remark;
 

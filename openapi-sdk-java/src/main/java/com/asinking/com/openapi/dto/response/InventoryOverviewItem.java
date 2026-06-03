@@ -18,6 +18,8 @@ public class InventoryOverviewItem {
     private String productName;
     /** 近30天毛利率（百分比，如 7.95 表示 7.95%） */
     private BigDecimal last30DaysProfit;
+    /** 退货率（预留，暂无计算逻辑） */
+    private BigDecimal returnRate;
     /** 海外在途（调拨在途） */
     private int overseasOnway;
     /** 海外可售（可用量） */

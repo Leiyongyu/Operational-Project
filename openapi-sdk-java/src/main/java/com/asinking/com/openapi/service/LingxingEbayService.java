@@ -47,16 +47,19 @@ public class LingxingEbayService {
     private final LingxingAuthService authService;
     private final ObjectMapper objectMapper;
     private final EbayProductListingService productListingService;
+    private final EbayProductDedupService dedupService;
 
     /** 构造 eBay 服务，注入配置、认证、JSON 工具及 Listing 持久化服务 */
     public LingxingEbayService(LingxingProperties properties,
                                LingxingAuthService authService,
                                ObjectMapper objectMapper,
-                               EbayProductListingService productListingService) {
+                               EbayProductListingService productListingService,
+                               EbayProductDedupService dedupService) {
         this.properties = properties;
         this.authService = authService;
         this.objectMapper = objectMapper;
         this.productListingService = productListingService;
+        this.dedupService = dedupService;
     }
 
     /** 按请求参数拉取单页 eBay 商品 listing，增量 upsert 入库 */
@@ -106,7 +109,9 @@ public class LingxingEbayService {
             }
         }
 
-        return new EbayProductFullSyncResult(inserted, updated, processed, pages, remoteTotal);
+        // 全量同步后自动重建去重表
+        int dedupCount = dedupService.rebuildFromListing();
+        return new EbayProductFullSyncResult(inserted, updated, processed, pages, remoteTotal, dedupCount);
     }
 
     private void putScalar(Map<String, Object> bodySend, Map<String, Object> bodySign, String key, Object value) {
