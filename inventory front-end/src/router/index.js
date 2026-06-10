@@ -61,6 +61,12 @@ const router = createRouter({
           component: () => import('@/views/LinkTemplateView.vue'),
           meta: { requiresAdmin: true, title: '链接管理' },
         },
+        {
+          path: 'operation-logs',
+          name: 'operationLogs',
+          component: () => import('@/views/OperationLogView.vue'),
+          meta: { requiresAdmin: true, title: '操作日志' },
+        },
       ],
     },
   ],

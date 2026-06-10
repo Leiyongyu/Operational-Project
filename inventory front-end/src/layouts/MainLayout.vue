@@ -89,6 +89,7 @@ const menuOptions = computed(() => {
         { label: '用户管理', key: '/users' },
         { label: '品牌负责人', key: '/brand-owners' },
         { label: '链接管理', key: '/link-templates' },
+        { label: '操作日志', key: '/operation-logs' },
       ],
     })
   }
