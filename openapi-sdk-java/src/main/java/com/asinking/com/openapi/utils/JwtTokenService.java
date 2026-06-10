@@ -5,13 +5,13 @@ import com.asinking.com.openapi.entity.UserEntity;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
+// removed
 import io.jsonwebtoken.security.Keys;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
-import java.security.Key;
+import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.UUID;
 
@@ -22,7 +22,7 @@ import java.util.UUID;
 public class JwtTokenService {
 
     private final JwtProperties jwtProperties;
-    private final Key signingKey;
+    private final SecretKey signingKey;
 
     public JwtTokenService(JwtProperties jwtProperties) {
         this.jwtProperties = jwtProperties;
@@ -35,25 +35,25 @@ public class JwtTokenService {
 
         String jti = UUID.randomUUID().toString().replace("-", "");
         String token = Jwts.builder()
-                .setIssuer(jwtProperties.getIssuer())
-                .setSubject(user.getAccount())
-                .setId(jti)
-                .setIssuedAt(new Date(now))
-                .setExpiration(new Date(expMillis))
+                .issuer(jwtProperties.getIssuer())
+                .subject(user.getAccount())
+                .id(jti)
+                .issuedAt(new Date(now))
+                .expiration(new Date(expMillis))
                 .claim("uid", user.getId())
                 .claim("role", user.getRole())
-                .signWith(signingKey, SignatureAlgorithm.HS256)
+                .signWith(signingKey, Jwts.SIG.HS256)
                 .compact();
 
         return new TokenInfo(token, expMillis, jti);
     }
 
     public Jws<Claims> parse(String token) {
-        return Jwts.parserBuilder()
+        return Jwts.parser()
                 .requireIssuer(jwtProperties.getIssuer())
-                .setSigningKey(signingKey)
+                .verifyWith(signingKey)
                 .build()
-                .parseClaimsJws(token);
+                .parseSignedClaims(token);
     }
 
     private byte[] resolveSecret(String secret) {

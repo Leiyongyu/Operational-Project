@@ -74,12 +74,11 @@ function onReset() {
   loadData()
 }
 
-const importing = ref(false)
-const syncingGoodcang = ref(false)
+const importExportLoading = ref(false)
 
 const importExportOptions = [
   { label: '导入最低价', key: 'importPrice' },
-  { label: '上传商品单价', key: 'uploadPrice' },
+  { label: '导入商品单价', key: 'uploadPrice' },
   { label: '同步谷仓商品', key: 'syncGoodcang' },
 ]
 
@@ -88,7 +87,6 @@ function handleDropdownSelect(key) {
   else if (key === 'uploadPrice') handleUploadPrice()
   else if (key === 'syncGoodcang') handleSyncGoodcangProducts()
 }
-const uploadingPrice = ref(false)
 
 async function handleUploadPrice() {
   const input = document.createElement('input')
@@ -97,7 +95,7 @@ async function handleUploadPrice() {
   input.onchange = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-    uploadingPrice.value = true
+    importExportLoading.value = true
     try {
       const form = new FormData()
       form.append('file', file)
@@ -107,14 +105,14 @@ async function handleUploadPrice() {
     } catch (err) {
       message.error('导入失败')
     } finally {
-      uploadingPrice.value = false
+      importExportLoading.value = false
     }
   }
   input.click()
 }
 
 async function handleSyncGoodcangProducts() {
-  syncingGoodcang.value = true
+  importExportLoading.value = true
   try {
     const resp = await fetch('/api/goodcang/sync-product', { method: 'POST' })
     const data = await resp.json()
@@ -122,7 +120,7 @@ async function handleSyncGoodcangProducts() {
   } catch (e) {
     message.error('同步失败')
   } finally {
-    syncingGoodcang.value = false
+    importExportLoading.value = false
   }
 }
 
@@ -141,7 +139,7 @@ async function handleImportPrice() {
   input.onchange = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-    importing.value = true
+    importExportLoading.value = true
     try {
       const res = await importLowestPrice(file)
       message.success(`导入完成: 共${res.total}条, 新增${res.inserted}, 更新${res.updated}, 跳过${res.skipped}`)
@@ -149,13 +147,13 @@ async function handleImportPrice() {
     } catch (err) {
       message.error(err instanceof Error ? err.message : '导入失败')
     } finally {
-      importing.value = false
+      importExportLoading.value = false
     }
   }
   input.click()
 }
 
-async function handleExport() {
+async function handleExport() { importExportLoading.value = true
   try {
     // 有选中行则只导出选中，否则全量导出
     const selected = checkedRowKeys.value.length > 0 ? checkedRowKeys.value : null
@@ -168,7 +166,7 @@ async function handleExport() {
     })
     message.success(selected ? `已导出 ${selected.length} 条` : '导出成功')
   } catch (e) {
-    message.error(e instanceof Error ? e.message : '导出失败')
+    importExportLoading.value = false; message.error(e.message || "导出失败")
   }
 }
 
@@ -336,7 +334,7 @@ const checkedRowKeys = ref([])
         <NButton @click="doLoadData" :loading="loading">刷新</NButton>
         <NButton type="primary" @click="handleExport">导出 Excel</NButton>
         <NDropdown trigger="click" :options="importExportOptions" @select="handleDropdownSelect">
-          <NButton type="primary">导入导出</NButton>
+          <NButton type="primary" :loading="importExportLoading">导入导出</NButton>
         </NDropdown>
       </NSpace>
     </div>

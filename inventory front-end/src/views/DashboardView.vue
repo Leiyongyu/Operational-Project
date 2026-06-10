@@ -28,6 +28,7 @@ const loading = ref(false)
 const syncing = ref(false)
 const uploading = ref(false)
 const recalculating = ref(false)
+const importExportLoading = ref(false)
 const warehouseLoading = ref(false)
 let loadSeq = 0
 
@@ -172,7 +173,7 @@ async function loadInventoryOverview() {
       warehouse: warehouseParam,
     })
     if (seq !== loadSeq) return
-    replenishRows.value = Array.isArray(list) ? list : []
+    replenishRows.value = list?.records || (Array.isArray(list) ? list : [])
     updatedAt.value = formatDateTime(new Date())
   } catch (error) {
     if (seq !== loadSeq) return
@@ -220,38 +221,57 @@ async function handleUploadExcel() {
   input.onchange = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-    uploading.value = true
+    importExportLoading.value = true
     try {
       const res = await uploadEbaySales(file)
-      message.success(`上传成功，新增${res.inserted}条，更新${res.updated}条`)
+      message.success(`导入成功，新增${res.inserted}条，更新${res.updated}条`)
     } catch (err) {
-      message.error(err instanceof Error ? err.message : '上传失败')
+      message.error(err instanceof Error ? err.message : '导入失败')
     } finally {
-      uploading.value = false
+      importExportLoading.value = false
     }
   }
   input.click()
 }
 
 const importExportOptions = [
-  { label: '上传销量报表', key: 'uploadSales' },
-  { label: '上传利润率', key: 'uploadProfitRate' },
+  { label: '导入销量报表', key: 'uploadSales' },
+  { label: '导入利润率', key: 'uploadProfitRate' },
+  { label: '导入退货率', key: 'uploadReturnRate' },
 ]
 
 function handleUploadProfitRate() {
   const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = '.xlsx,.xls'
+  input.type = 'file'; input.accept = '.xlsx,.xls'
   input.onchange = async (e) => {
     const file = e.target.files[0]
     if (!file) return
+    importExportLoading.value = true
     try {
-      const form = new FormData()
-      form.append('file', file)
+      const form = new FormData(); form.append('file', file)
       const resp = await fetch('/api/goodcang/import-profit-rate', { method: 'POST', body: form })
       const data = await resp.json()
       message.success('导入完成：共' + data.total + '条，更新' + data.updated + '，跳过' + data.skipped)
     } catch (err) { message.error('导入失败') }
+    finally { importExportLoading.value = false }
+  }
+  input.click()
+}
+
+function handleUploadReturnRate() {
+  const input = document.createElement('input')
+  input.type = 'file'; input.accept = '.xlsx,.xls'
+  input.onchange = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    importExportLoading.value = true
+    try {
+      const form = new FormData(); form.append('file', file)
+      const resp = await fetch('/api/goodcang/import-return-rate', { method: 'POST', body: form })
+      const data = await resp.json()
+      message.success('导入完成：共' + data.total + '条，更新' + data.updated + '，跳过' + data.skipped)
+    } catch (err) { message.error('导入失败') }
+    finally { importExportLoading.value = false }
   }
   input.click()
 }
@@ -259,6 +279,7 @@ function handleUploadProfitRate() {
 function handleDropdownSelect(key) {
   if (key === 'uploadSales') handleUploadExcel()
   else if (key === 'uploadProfitRate') handleUploadProfitRate()
+  else if (key === 'uploadReturnRate') handleUploadReturnRate()
 }
 
 function handleReset() {
@@ -323,7 +344,7 @@ function renderWarehouseOption({ node, option, selected }) {
             拉取最新数据
           </NButton>
           <NDropdown trigger="click" :options="importExportOptions" @select="handleDropdownSelect">
-            <NButton size="small" type="info">导入导出</NButton>
+            <NButton size="small" type="info" :loading="importExportLoading">导入导出</NButton>
           </NDropdown>
         </NSpace>
       </template>

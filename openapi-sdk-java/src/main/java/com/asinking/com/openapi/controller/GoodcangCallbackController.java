@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.OutputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -211,6 +211,12 @@ public class GoodcangCallbackController {
     @PostMapping("/import-profit-rate")
     public Object importProfitRate(@RequestParam("file") org.springframework.web.multipart.MultipartFile file) throws Exception {
         return dedupService.importProfitRate(file.getBytes());
+    }
+
+    /** 导入退货率 Excel（按中间码匹配更新 ebay_product_dedup.return_rate） */
+    @PostMapping("/import-return-rate")
+    public Object importReturnRate(@RequestParam("file") org.springframework.web.multipart.MultipartFile file) throws Exception {
+        return dedupService.importReturnRate(file.getBytes());
     }
 
     /** 导入商品单价 Excel（按 middle_code 匹配更新 price） */

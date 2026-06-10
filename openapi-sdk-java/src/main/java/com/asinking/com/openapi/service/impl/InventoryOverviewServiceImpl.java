@@ -1,6 +1,6 @@
 package com.asinking.com.openapi.service.impl;
 
-import com.alibaba.fastjson.JSON;
+import com.asinking.com.openapi.common.response.PageResult;
 import com.asinking.com.openapi.config.LingxingProperties;
 import com.asinking.com.openapi.dto.response.InventoryOverviewItem;
 import com.asinking.com.openapi.dto.response.WarehouseOptionItem;
@@ -10,8 +10,6 @@ import com.asinking.com.openapi.service.*;
 import com.asinking.com.openapi.utils.InventoryUtils;
 import com.asinking.com.openapi.entity.EbayProductDedupEntity;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -23,7 +21,6 @@ import java.util.Arrays;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -46,14 +43,8 @@ public class InventoryOverviewServiceImpl implements InventoryOverviewService {
     private final WarehouseStatementMapper warehouseStatementMapper;
     private final EbaySalesMapper ebaySalesMapper;
     private final PurchasePlanMapper purchasePlanMapper;
-    private final InventorySnapshotMapper snapshotMapper;
+    private final InventoryOverviewMapper overviewMapper;
     private final EbayProductDedupService dedupService;
-
-    /** 快照缓存：30 分钟自动过期，同步任务跑完后主动清除 */
-    private final Cache<String, List<InventoryOverviewItem>> overviewCache = CacheBuilder.newBuilder()
-            .expireAfterWrite(30, TimeUnit.MINUTES)
-            .build();
-    private static final String CACHE_KEY = "overview";
 
     public InventoryOverviewServiceImpl(LingxingProperties properties, WarehouseService warehouseService,
             WarehouseInventoryDetailService inventoryService, BrandOwnerService brandOwnerService,
@@ -62,7 +53,7 @@ public class InventoryOverviewServiceImpl implements InventoryOverviewService {
             GoodcangGrnDetailMapper grnDetailMapper, GoodcangWarehouseMapper gcWarehouseMapper,
             PurchaseOrderMapper purchaseOrderMapper, WarehouseStatementMapper warehouseStatementMapper,
             EbaySalesMapper ebaySalesMapper, PurchasePlanMapper purchasePlanMapper,
-            InventorySnapshotMapper snapshotMapper,
+            InventoryOverviewMapper overviewMapper,
             EbayProductDedupService dedupService) {
         this.properties = properties; this.warehouseService = warehouseService;
         this.inventoryService = inventoryService; this.brandOwnerService = brandOwnerService;
@@ -71,71 +62,40 @@ public class InventoryOverviewServiceImpl implements InventoryOverviewService {
         this.grnDetailMapper = grnDetailMapper; this.gcWarehouseMapper = gcWarehouseMapper;
         this.purchaseOrderMapper = purchaseOrderMapper; this.warehouseStatementMapper = warehouseStatementMapper;
         this.ebaySalesMapper = ebaySalesMapper; this.purchasePlanMapper = purchasePlanMapper;
-        this.snapshotMapper = snapshotMapper;
+        this.overviewMapper = overviewMapper;
         this.dedupService = dedupService;
     }
 
-    // ====================================================================
-    // 公开 API
-    // ====================================================================
-
     @Override
     public List<InventoryOverviewItem> buildOverview() {
-        // 1) 优先从 Guava 内存缓存取
-        List<InventoryOverviewItem> cached = overviewCache.getIfPresent(CACHE_KEY);
-        if (cached != null) return cached;
-
-        // 2) 从快照表取（表不存在则忽略，降级实时计算）
-        try {
-            InventorySnapshotEntity snap = snapshotMapper.selectById(1);
-            if (snap != null && StringUtils.hasText(snap.getDataJson())) {
-                try {
-                    List<InventoryOverviewItem> items = JSON.parseArray(snap.getDataJson(), InventoryOverviewItem.class);
-                    if (items != null && !items.isEmpty()) {
-                        overviewCache.put(CACHE_KEY, items);
-                        return items;
-                    }
-                } catch (Exception e) {
-                    LOG.warn("快照 JSON 解析失败，降级实时计算", e);
-                }
-            }
-        } catch (Exception e) {
-            LOG.warn("快照表不可用（可能未建表），降级实时计算: {}", e.getMessage());
-        }
-
-        // 3) 降级：缓存和快照都空，首次启动实时算一次
-        List<InventoryOverviewItem> result = computeOverview();
-        overviewCache.put(CACHE_KEY, result);
-        return result;
+        return overviewMapper.selectList(null).stream().map(this::entityToDto).collect(Collectors.toList());
     }
 
     @Override
     public void refreshSnapshot() {
-        LOG.info("==== 运营数据快照刷新 开始 ====");
+        LOG.info("==== 运营数据重算写入数据库 开始 ====");
         long t = System.currentTimeMillis();
         try {
             List<InventoryOverviewItem> items = computeOverview();
-            String json = JSON.toJSONString(items);
-
-            InventorySnapshotEntity snap = snapshotMapper.selectById(1);
-            if (snap == null) {
-                snap = new InventorySnapshotEntity();
-                snap.setId(1);
-                snap.setDataJson(json);
-                snapshotMapper.insert(snap);
-            } else {
-                snap.setDataJson(json);
-                snapshotMapper.updateById(snap);
-            }
-
-            // 清除缓存让下次请求读新快照
-            overviewCache.invalidate(CACHE_KEY);
-            overviewCache.put(CACHE_KEY, items);
-
-            LOG.info("==== 运营数据快照刷新 完成: {} 条 耗时{}ms ====", items.size(), System.currentTimeMillis() - t);
+            overviewMapper.delete(null);
+            for (InventoryOverviewItem item : items) overviewMapper.insert(dtoToEntity(item));
+            LOG.info("==== 重算完成: {} 条 耗时{}ms ====", items.size(), System.currentTimeMillis() - t);
         } catch (Exception e) {
-            LOG.error("快照刷新失败", e);
+            LOG.error("重算失败", e);
         }
+    }
+
+    @Override
+    public PageResult<InventoryOverviewItem> pageOverview(long page, long size, String sku, String warehouse,
+                                                           String userId, String role) {
+        List<InventoryOverviewItem> filtered = filterOverview(sku, warehouse, userId, role);
+        long p = page <= 0 ? 1 : page;
+        long s = size <= 0 ? 20 : Math.min(size, 200);
+        long total = filtered.size();
+        long from = (p - 1) * s;
+        if (from >= total) return new PageResult<>(total, p, s, Collections.emptyList());
+        long to = Math.min(from + s, total);
+        return new PageResult<>(total, p, s, filtered.subList((int) from, (int) to));
     }
 
     @Override
@@ -405,11 +365,14 @@ public class InventoryOverviewServiceImpl implements InventoryOverviewService {
                 item.setPurchasePlan(String.valueOf(purchasePlanCountMap.getOrDefault(inv.siteLabel + "|" + baseSku, 0)));
 
                 Integer cycle = item.getPurchaseCycle(), od = item.getOutboundDays();
-                if (cycle != null && od != null) {
+                int planCount = parsePlanCount(item.getPurchasePlan());
+                boolean allLe2 = item.getPurchasePendingDelivery() <= 2 && item.getLocalSellable() <= 2
+                        && item.getLocalOnway() <= 2 && planCount <= 2 && item.getLockNum() <= 2;
+                boolean canCalc = allLe2 ? (cycle != null && od != null) : (cycle != null);
+                if (canCalc) {
                     BigDecimal avg = BigDecimal.valueOf(item.getLast90DaysSales()).divide(BigDecimal.valueOf(3), 4, RoundingMode.HALF_UP);
-                    // 采购数量 = 近3月均销量 × (采购周期 + 出库天数) / 30
-                    item.setPurchaseQuantity(avg.multiply(BigDecimal.valueOf((cycle + od) / 30.0))
-                            .setScale(0, RoundingMode.HALF_UP));
+                    double days = allLe2 ? (cycle + od) : cycle;
+                    item.setPurchaseQuantity(avg.multiply(BigDecimal.valueOf(days / 30.0)).setScale(0, RoundingMode.HALF_UP));
                 }
 
                 Integer mm = item.getMaxMonthlySales();
@@ -494,4 +457,41 @@ public class InventoryOverviewServiceImpl implements InventoryOverviewService {
     }
 
     private static class SkuSiteInv { String sku, siteLabel; int overseasSellable, overseasOnway, localSellable, localOnway, lockNum; SkuSiteInv(String s, String l) { sku = s; siteLabel = l; } }
+
+    private InventoryOverviewItem entityToDto(InventoryOverviewEntity e) {
+        InventoryOverviewItem i = new InventoryOverviewItem();
+        i.setWarehouseNames(e.getWarehouseNames()); i.setSku(e.getSku()); i.setProductName(e.getProductName());
+        i.setSkuLevel(e.getSkuLevel()); i.setLast30DaysProfit(e.getLast30DaysProfit()); i.setReturnRate(e.getReturnRate());
+        i.setOverseasOnway(nvl(e.getOverseasOnway())); i.setOverseasSellable(nvl(e.getOverseasSellable()));
+        i.setOverseasTotal(nvl(e.getOverseasTotal())); i.setPurchasePendingDelivery(nvl(e.getPurchasePendingDelivery()));
+        i.setLocalSellable(nvl(e.getLocalSellable())); i.setLocalOnway(nvl(e.getLocalOnway()));
+        i.setPurchasePlan(e.getPurchasePlan()); i.setLockNum(nvl(e.getLockNum())); i.setTotalInventory(nvl(e.getTotalInventory()));
+        i.setLast7DaysSales(nvl(e.getLast7DaysSales())); i.setLast30DaysSales(nvl(e.getLast30DaysSales()));
+        i.setLast90DaysSales(nvl(e.getLast90DaysSales())); i.setMaxMonthlySales(e.getMaxMonthlySales());
+        i.setOverseasInStockRatio(e.getOverseasInStockRatio()); i.setOverseasTotalRatio(e.getOverseasTotalRatio());
+        i.setTotalInventoryRatio(e.getTotalInventoryRatio()); i.setLastLocalOutboundTime(e.getLastLocalOutboundTime());
+        i.setOutboundDays(e.getOutboundDays()); i.setPurchaseCycle(e.getPurchaseCycle());
+        i.setPurchaseQuantity(e.getPurchaseQuantity()); i.setMaxMonthlyReplenish(e.getMaxMonthlyReplenish());
+        i.setOwner(e.getOwner()); return i;
+    }
+
+    private InventoryOverviewEntity dtoToEntity(InventoryOverviewItem i) {
+        InventoryOverviewEntity e = new InventoryOverviewEntity();
+        e.setWarehouseNames(i.getWarehouseNames()); e.setSku(i.getSku()); e.setProductName(i.getProductName());
+        e.setSkuLevel(i.getSkuLevel()); e.setLast30DaysProfit(i.getLast30DaysProfit()); e.setReturnRate(i.getReturnRate());
+        e.setOverseasOnway(i.getOverseasOnway()); e.setOverseasSellable(i.getOverseasSellable());
+        e.setOverseasTotal(i.getOverseasTotal()); e.setPurchasePendingDelivery(i.getPurchasePendingDelivery());
+        e.setLocalSellable(i.getLocalSellable()); e.setLocalOnway(i.getLocalOnway());
+        e.setPurchasePlan(i.getPurchasePlan()); e.setLockNum(i.getLockNum()); e.setTotalInventory(i.getTotalInventory());
+        e.setLast7DaysSales(i.getLast7DaysSales()); e.setLast30DaysSales(i.getLast30DaysSales());
+        e.setLast90DaysSales(i.getLast90DaysSales()); e.setMaxMonthlySales(i.getMaxMonthlySales());
+        e.setOverseasInStockRatio(i.getOverseasInStockRatio()); e.setOverseasTotalRatio(i.getOverseasTotalRatio());
+        e.setTotalInventoryRatio(i.getTotalInventoryRatio()); e.setLastLocalOutboundTime(i.getLastLocalOutboundTime());
+        e.setOutboundDays(i.getOutboundDays()); e.setPurchaseCycle(i.getPurchaseCycle());
+        e.setPurchaseQuantity(i.getPurchaseQuantity()); e.setMaxMonthlyReplenish(i.getMaxMonthlyReplenish());
+        e.setOwner(i.getOwner()); return e;
+    }
+
+    private int parsePlanCount(String plan) { if (plan == null || plan.isEmpty()) return 0; try { return Integer.parseInt(plan); } catch (NumberFormatException e) { return 0; } }
+    private int nvl(Integer v) { return v != null ? v : 0; }
 }

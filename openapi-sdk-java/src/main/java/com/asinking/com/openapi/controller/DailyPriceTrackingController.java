@@ -12,7 +12,7 @@ import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.web.bind.annotation.*;
 
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.OutputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -39,6 +39,13 @@ public class DailyPriceTrackingController {
         this.lowestPriceService = lowestPriceService;
         this.dedupService = dedupService;
         this.linkTemplateService = linkTemplateService;
+    }
+
+    /** 重算并写入数据库 */
+    @PostMapping("/refresh-table")
+    public Result<String> refreshTable() {
+        service.refreshTable();
+        return Result.ok("ok");
     }
 
     /** 分页查询 */

@@ -17,6 +17,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.stream.Collectors;
 
 /**
@@ -27,6 +30,7 @@ import java.util.stream.Collectors;
 @Service
 public class DailyPriceTrackingServiceImpl implements DailyPriceTrackingService {
 
+    private static final Logger LOG = LoggerFactory.getLogger(DailyPriceTrackingServiceImpl.class);
     private final LingxingProperties lingxingProperties;
     private final WarehouseService warehouseService;
     private final WarehouseInventoryDetailService inventoryService;
@@ -39,6 +43,7 @@ public class DailyPriceTrackingServiceImpl implements DailyPriceTrackingService 
     private final LowestPriceRecordService lowestPriceService;
     private final EbayProductDedupService dedupService;
     private final EbayLinkTemplateService linkTemplateService;
+    private final DailyPriceTrackingCacheMapper cacheMapper;
     public DailyPriceTrackingServiceImpl(LingxingProperties lingxingProperties,
                                          WarehouseService warehouseService,
                                          WarehouseInventoryDetailService inventoryService,
@@ -50,7 +55,8 @@ public class DailyPriceTrackingServiceImpl implements DailyPriceTrackingService 
                                          InventoryOverviewService overviewService,
                                          LowestPriceRecordService lowestPriceService,
                                          EbayProductDedupService dedupService,
-                                         EbayLinkTemplateService linkTemplateService) {
+                                         EbayLinkTemplateService linkTemplateService,
+                                         DailyPriceTrackingCacheMapper cacheMapper) {
         this.lingxingProperties = lingxingProperties;
         this.warehouseService = warehouseService;
         this.inventoryService = inventoryService;
@@ -63,13 +69,20 @@ public class DailyPriceTrackingServiceImpl implements DailyPriceTrackingService 
         this.lowestPriceService = lowestPriceService;
         this.dedupService = dedupService;
         this.linkTemplateService = linkTemplateService;
+        this.cacheMapper = cacheMapper;
     }
 
     @Override
     public PageResult<DailyPriceTrackingItem> page(long page, long size,
                                                    String site, String sku, String brand, String operator) {
-        // 1. 获取全量数据（快照优先 → 实时计算兜底）
-        List<DailyPriceTrackingItem> allRows = computeDailyPriceTracking();
+        // 1. 优先从缓存表读取，表为空则实时计算
+        Long tableCount = cacheMapper.selectCount(null);
+        List<DailyPriceTrackingItem> allRows;
+        if (tableCount != null && tableCount > 0) {
+            allRows = cacheMapper.selectList(null).stream().map(this::entityToDto).collect(Collectors.toList());
+        } else {
+            allRows = computeDailyPriceTracking();
+        }
 
         // 2. 内存筛选
         List<DailyPriceTrackingItem> filtered = allRows.stream()
@@ -434,5 +447,47 @@ public class DailyPriceTrackingServiceImpl implements DailyPriceTrackingService 
         if (keyword == null || keyword.trim().isEmpty()) return true;
         if (actual == null) return false;
         return actual.toLowerCase().contains(keyword.trim().toLowerCase());
+    }
+
+    /** 重算并写入数据库 */
+    public void refreshTable() {
+        LOG.info("==== 每日跟价数据重算写入数据库 开始 ====");
+        long t = System.currentTimeMillis();
+        try {
+            List<DailyPriceTrackingItem> items = computeDailyPriceTracking();
+            cacheMapper.delete(null);
+            for (DailyPriceTrackingItem item : items) cacheMapper.insert(dtoToEntity(item));
+            LOG.info("==== 重算完成: {} 条 耗时{}ms ====", items.size(), System.currentTimeMillis() - t);
+        } catch (Exception e) { LOG.error("重算失败", e); }
+    }
+
+    private DailyPriceTrackingCacheEntity dtoToEntity(DailyPriceTrackingItem i) {
+        DailyPriceTrackingCacheEntity e = new DailyPriceTrackingCacheEntity();
+        e.setSite(i.getSite()); e.setSku(i.getSku()); e.setProductName(i.getProductName());
+        e.setSkuLevel(i.getSkuLevel()); e.setLast3DaysSales(i.getLast3DaysSales());
+        e.setLast7DaysSales(i.getLast7DaysSales()); e.setLast30DaysSales(i.getLast30DaysSales());
+        e.setLast90DaysSales(i.getLast90DaysSales()); e.setMaxMonthlySales(i.getMaxMonthlySales());
+        e.setOverseasWarehouseStock(i.getOverseasWarehouseStock()); e.setOverseasWarehouseAge(i.getOverseasWarehouseAge());
+        e.setStockSalesRatio(i.getStockSalesRatio()); e.setEstimatedReplenish(i.getEstimatedReplenish());
+        e.setOurLowestPrice(i.getOurLowestPrice()); e.setTrackingPrice(i.getTrackingPrice());
+        e.setTrackingProfitMargin(i.getTrackingProfitMargin()); e.setFloorPrice(i.getFloorPrice());
+        e.setReturnRate(i.getReturnRate()); e.setEbayFrontpageUrl(i.getEbayFrontpageUrl());
+        e.setFrontpageSoldUrl(i.getFrontpageSoldUrl()); e.setBrand(i.getBrand()); e.setOperator(i.getOperator());
+        e.setRemark(i.getRemark()); e.setOeNumber(i.getOeNumber()); return e;
+    }
+
+    private DailyPriceTrackingItem entityToDto(DailyPriceTrackingCacheEntity e) {
+        DailyPriceTrackingItem i = new DailyPriceTrackingItem();
+        i.setSite(e.getSite()); i.setSku(e.getSku()); i.setProductName(e.getProductName());
+        i.setSkuLevel(e.getSkuLevel()); i.setLast3DaysSales(e.getLast3DaysSales());
+        i.setLast7DaysSales(e.getLast7DaysSales()); i.setLast30DaysSales(e.getLast30DaysSales());
+        i.setLast90DaysSales(e.getLast90DaysSales()); i.setMaxMonthlySales(e.getMaxMonthlySales());
+        i.setOverseasWarehouseStock(e.getOverseasWarehouseStock()); i.setOverseasWarehouseAge(e.getOverseasWarehouseAge());
+        i.setStockSalesRatio(e.getStockSalesRatio()); i.setEstimatedReplenish(e.getEstimatedReplenish());
+        i.setOurLowestPrice(e.getOurLowestPrice()); i.setTrackingPrice(e.getTrackingPrice());
+        i.setTrackingProfitMargin(e.getTrackingProfitMargin()); i.setFloorPrice(e.getFloorPrice());
+        i.setReturnRate(e.getReturnRate()); i.setEbayFrontpageUrl(e.getEbayFrontpageUrl());
+        i.setFrontpageSoldUrl(e.getFrontpageSoldUrl()); i.setBrand(e.getBrand()); i.setOperator(e.getOperator());
+        i.setRemark(e.getRemark()); i.setOeNumber(e.getOeNumber()); return i;
     }
 }

@@ -42,6 +42,9 @@ public class EbayProductDedupEntity {
     @TableField("profit_rate")
     private java.math.BigDecimal profitRate;
 
+    @TableField("return_rate")
+    private java.math.BigDecimal returnRate;
+
     @TableField(value = "create_time", fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 

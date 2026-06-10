@@ -1,5 +1,6 @@
 package com.asinking.com.openapi.controller;
 
+import com.asinking.com.openapi.common.response.PageResult;
 import com.asinking.com.openapi.common.response.Result;
 import com.asinking.com.openapi.dto.response.InventoryOverviewItem;
 import com.asinking.com.openapi.dto.response.WarehouseOptionItem;
@@ -11,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 
 /**
@@ -33,13 +34,15 @@ public class InventoryOverviewController {
      * 获取库存概览汇总，支持按 SKU / 站点 / 品牌权限筛选。
      */
     @GetMapping
-    public Result<List<InventoryOverviewItem>> overview(
+    public Result<PageResult<InventoryOverviewItem>> overview(
+            @RequestParam(defaultValue = "1") long page,
+            @RequestParam(defaultValue = "100") long size,
             @RequestParam(required = false) String sku,
             @RequestParam(required = false) String warehouse,
             HttpServletRequest request) {
         String userId = String.valueOf(request.getAttribute(JwtAuthInterceptor.ATTR_USER_ID));
         String role = String.valueOf(request.getAttribute(JwtAuthInterceptor.ATTR_ROLE));
-        return Result.ok(overviewService.filterOverview(sku, warehouse, userId, role));
+        return Result.ok(overviewService.pageOverview(page, size, sku, warehouse, userId, role));
     }
 
     /**

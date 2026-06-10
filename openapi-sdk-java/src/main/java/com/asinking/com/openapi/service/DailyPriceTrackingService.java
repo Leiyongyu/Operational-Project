@@ -15,4 +15,7 @@ public interface DailyPriceTrackingService {
      */
     PageResult<DailyPriceTrackingItem> page(long page, long size,
                                             String site, String sku, String brand, String operator);
+
+    /** 重算并写入数据库 */
+    void refreshTable();
 }

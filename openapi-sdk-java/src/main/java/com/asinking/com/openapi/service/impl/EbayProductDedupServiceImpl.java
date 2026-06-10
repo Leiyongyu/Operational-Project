@@ -270,4 +270,53 @@ public class EbayProductDedupServiceImpl implements EbayProductDedupService {
     public List<EbayProductDedupEntity> listAll() {
         return mapper.selectList(null);
     }
+
+    @Override
+    public Map<String, Integer> importReturnRate(byte[] fileBytes) {
+        Map<String, java.math.BigDecimal> rateMap = new LinkedHashMap<>();
+        try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(fileBytes))) {
+            Sheet sheet = wb.getSheetAt(0);
+            Row hr = sheet.getRow(0);
+            int colSku = -1, colRate = -1;
+            DataFormatter df = new DataFormatter();
+            for (int c = 0; c < hr.getLastCellNum(); c++) {
+                Cell cell = hr.getCell(c);
+                if (cell == null) continue;
+                String h = df.formatCellValue(cell).trim();
+                if (h.contains("SKU") || h.contains("产品SKU")) colSku = c;
+                else if (h.contains("各平台售后率")) colRate = c;
+            }
+            if (colSku < 0) colSku = 0;
+            if (colRate < 0) colRate = 4;
+            for (int r = 1; r <= sheet.getLastRowNum(); r++) {
+                Row row = sheet.getRow(r);
+                if (row == null) continue;
+                String fullSku = df.formatCellValue(row.getCell(colSku)).trim();
+                String rateStr = df.formatCellValue(row.getCell(colRate)).trim();
+                if (fullSku.isEmpty() || rateStr.isEmpty()) continue;
+                if (rateStr.endsWith("%")) {
+                    try { rateStr = new java.math.BigDecimal(rateStr.replace("%", "").trim())
+                            .divide(new java.math.BigDecimal("100"), 6, java.math.RoundingMode.HALF_UP).toString(); } catch (Exception ignored) {}
+                }
+                String mid = InventoryUtils.extractMiddleCodeForInventory(fullSku);
+                if (mid.isEmpty()) mid = fullSku;
+                try { rateMap.putIfAbsent(mid, new java.math.BigDecimal(rateStr)); } catch (Exception ignored) {}
+            }
+        } catch (Exception e) { throw new RuntimeException("解析Excel失败: " + e.getMessage()); }
+        int updated = 0, skipped = 0;
+        Map<String, EbayProductDedupEntity> dedupByMid = new LinkedHashMap<>();
+        for (EbayProductDedupEntity ent : mapper.selectList(null)) {
+            if (ent.getSku() == null || ent.getSku().isEmpty()) continue;
+            String mid = InventoryUtils.extractMiddleCodeForInventory(ent.getSku());
+            if (!mid.isEmpty()) dedupByMid.putIfAbsent(mid, ent);
+        }
+        for (Map.Entry<String, java.math.BigDecimal> e : rateMap.entrySet()) {
+            EbayProductDedupEntity ent = dedupByMid.get(e.getKey());
+            if (ent != null) { ent.setReturnRate(e.getValue()); mapper.updateById(ent); updated++; }
+            else { skipped++; }
+        }
+        Map<String, Integer> result = new LinkedHashMap<>();
+        result.put("total", rateMap.size()); result.put("updated", updated); result.put("skipped", skipped);
+        return result;
+    }
 }

@@ -85,7 +85,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserEntity> impleme
         }
 
         Jws<Claims> jws = jwtTokenService.parse(token);
-        Claims claims = jws.getBody();
+        Claims claims = jws.getPayload();
         String jti = claims.getId();
         long expMillis = claims.getExpiration() != null ? claims.getExpiration().getTime() : System.currentTimeMillis();
         tokenBlacklist.revoke(jti, expMillis);

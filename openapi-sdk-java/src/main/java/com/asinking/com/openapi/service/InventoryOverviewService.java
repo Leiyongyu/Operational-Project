@@ -1,5 +1,6 @@
 package com.asinking.com.openapi.service;
 
+import com.asinking.com.openapi.common.response.PageResult;
 import com.asinking.com.openapi.dto.response.InventoryOverviewItem;
 import com.asinking.com.openapi.dto.response.WarehouseOptionItem;
 
@@ -31,7 +32,12 @@ public interface InventoryOverviewService {
     List<WarehouseOptionItem> getWarehouseOptions();
 
     /**
-     * 全量重算运营数据并写入快照表，供定时任务在数据同步后调用。
+     * 分页查询库存概览。
+     */
+    PageResult<InventoryOverviewItem> pageOverview(long page, long size, String sku, String warehouse, String userId, String role);
+
+    /**
+     * 全量重算运营数据并写入数据库，供定时任务和手动刷新调用。
      */
     void refreshSnapshot();
 }

@@ -7,9 +7,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingRequestWrapper;
 import org.springframework.web.util.ContentCachingResponseWrapper;
 
-import javax.servlet.FilterChain;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -22,7 +22,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
-                                    FilterChain filterChain) throws java.io.IOException, javax.servlet.ServletException {
+                                    FilterChain filterChain) throws java.io.IOException, jakarta.servlet.ServletException {
         long start = System.currentTimeMillis();
         ContentCachingRequestWrapper reqWrapper = new ContentCachingRequestWrapper(request);
         ContentCachingResponseWrapper respWrapper = new ContentCachingResponseWrapper(response);
