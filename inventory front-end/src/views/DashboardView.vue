@@ -48,8 +48,10 @@ const NUMERIC_FIELDS = new Set([
 
 // ===== 列筛选 =====
 const filterField = ref('')
-const filterValue = ref('')
+const activeFilters = ref([])  // [{ field, value, display }] 多条件联动
 const filterInputVal = ref('')
+const filterNumOpVal = ref('>')
+const filterNumInputVal = ref('')
 const filterChecked = ref([])  // 多选值
 const filterSearchResults = ref([])
 const filterRawRef = ref(null)   // 原生输入框 DOM 引用
@@ -83,12 +85,21 @@ const distinctFilterValues = computed(() => {
 function openFilter(key, e) {
   filterField.value = key
   filterInputVal.value = ''
+  filterNumOpVal.value = '>'
+  filterNumInputVal.value = ''
   filterSearchResults.value = []
-	// 数值字段使用运算符表达式（如 >14），不拆分为多选值
-	filterChecked.value = filterField.value === key && filterValue.value && !NUMERIC_FIELDS.has(key)
-    ? filterValue.value.split(',').filter(Boolean) : []
+  const exist = activeFilters.value.find(f => f.field === key)
+  filterChecked.value = exist && !NUMERIC_FIELDS.has(key)
+    ? exist.value.split(',').filter(Boolean) : []
   // 回显已有的筛选值
-  if (filterValue.value) filterInputVal.value = filterValue.value
+  if (exist) {
+    if (NUMERIC_FIELDS.has(key)) {
+      const m = exist.value.match(/^(>=|<=|>|<|=)(.+)$/)
+      if (m) { filterNumOpVal.value = m[1]; filterNumInputVal.value = m[2] }
+    } else {
+      filterInputVal.value = exist.value
+    }
+  }
   const rect = e.currentTarget.getBoundingClientRect()
   filterX.value = rect.left
   filterY.value = rect.bottom + 4
@@ -100,24 +111,34 @@ function toggleFilterCheck(val) {
   else filterChecked.value.push(val)
 }
 function applyFilter() {
-  const rawVal = filterInputVal.value
-  if (filterChecked.value.length) {
-    filterValue.value = filterChecked.value.join(',')
-  } else if (rawVal && rawVal.trim()) {
-    filterValue.value = rawVal.trim()
-  } else {
-    filterValue.value = ''
+  const field = filterField.value
+  const rawVal = NUMERIC_FIELDS.has(field)
+    ? (filterNumInputVal.value ? filterNumOpVal.value + filterNumInputVal.value.trim() : '')
+    : filterInputVal.value
+  const val = filterChecked.value.length ? filterChecked.value.join(',') : (rawVal && rawVal.trim() ? rawVal.trim() : '')
+  // 更新或移除
+  activeFilters.value = activeFilters.value.filter(f => f.field !== field)
+  if (val) {
+    const title = allColumnMap[field] || field
+    activeFilters.value.push({ field, value: val, display: title + ':' + val })
   }
   showFilter.value = false
   query.page = 1
   loadInventoryOverview()
 }
 function clearFilter() {
-  filterField.value = ''
-  filterValue.value = ''
+  activeFilters.value = activeFilters.value.filter(f => f.field !== filterField.value)
   filterInputVal.value = ''
+  filterNumOpVal.value = '>'
+  filterNumInputVal.value = ''
   filterChecked.value = []
   showFilter.value = false
+  query.page = 1
+  loadInventoryOverview()
+}
+function clearAllFilters() {
+  activeFilters.value = []
+  filterField.value = ''
   query.page = 1
   loadInventoryOverview()
 }
@@ -138,7 +159,7 @@ function handleSortClick(key) {
 }
 
 function renderFilterIcon(key) {
-  const isActive = filterField.value === key && filterValue.value
+  const isActive = activeFilters.value.some(f => f.field === key)
   const color = isActive ? '#1677ff' : '#bfbfbf'
   return h('svg', {
     viewBox: '0 0 1024 1024', width: '12', height: '12',
@@ -259,26 +280,27 @@ const replenishColumns = [
   { title: '负责人', key: 'owner', width: 100,
     render: (row) => row.owner ?? '' },
 ].map((c) => ({ ...c, resizable: false, minWidth: 70 }))
-  .map((c) => {
-    if (!c.key) return c
-    const needSort = NUMERIC_FIELDS.has(c.key)
-    const origTitle = c.title
-    c.title = () => h('span', { style: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '10px' } }, [
-      renderFilterIcon(c.key),
-      origTitle,
-      needSort ? renderSortIcon(c.key) : null,
-    ].filter(Boolean))
-    return c
-  })
 
-const replenishScrollX = replenishColumns.reduce((s, c) => s + (Number(c?.width) || 100), 0)
-const replenishMaxHeight = 680
-
-// ===== 列配置 =====
+// ===== 列配置（必须在替换 title 之前，保存原始字符串标题）=====
 const allColumnMap = replenishColumns.reduce((m, c) => {
   if (c.key) m[c.key] = c.title
   return m
 }, {})
+
+// 替换 title 为渲染函数（添加筛选/排序图标）
+replenishColumns.forEach((c) => {
+  if (!c.key) return
+  const needSort = NUMERIC_FIELDS.has(c.key)
+  const origTitle = c.title
+  c.title = () => h('span', { style: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '10px' } }, [
+    renderFilterIcon(c.key),
+    origTitle,
+    needSort ? renderSortIcon(c.key) : null,
+  ].filter(Boolean))
+})
+
+const replenishScrollX = replenishColumns.reduce((s, c) => s + (Number(c?.width) || 100), 0)
+const replenishMaxHeight = 680
 const {
   showDrawer, visibleKeys, editingKeys, leftCols, selCols, isAllChecked,
   init: initColConfig, openDrawer, apply: applyColConfig,
@@ -295,8 +317,8 @@ async function loadInventoryOverview() {
   try {
     const body = { page: query.page, size: query.size }
     if (sortField.value) { body.sortField = sortField.value; body.sortOrder = sortOrder.value }
-    if (filterField.value && filterValue.value) {
-      body.filters = [{ field: filterField.value, value: filterValue.value }]
+    if (activeFilters.value.length) {
+      body.filters = activeFilters.value.map(f => ({ field: f.field, value: f.value }))
     }
     const list = await searchInventoryOverview(body)
     if (seq !== loadSeq) return
@@ -469,6 +491,12 @@ function handleDropdownSelect(key) {
         </NSpace>
       </template>
 
+      <!-- 筛选标签 -->
+      <div v-if="activeFilters.length" class="filter-tags">
+        <NTag v-for="f in activeFilters" :key="f.field" closable size="small" type="info" @close="activeFilters = activeFilters.filter(af => af.field !== f.field); query.page = 1; loadInventoryOverview()">{{ f.display }}</NTag>
+        <NButton size="tiny" text type="error" @click="clearAllFilters">清除全部</NButton>
+      </div>
+
       <NDataTable
         remote
         :loading="loading"
@@ -539,7 +567,15 @@ function handleDropdownSelect(key) {
     <Teleport to="body">
       <div v-if="showFilter" class="filter-popover" :style="{ left: filterX + 'px', top: filterY + 'px' }" @click.stop>
         <div class="filter-popover-inner">
-          <input ref="filterRawRef" :value="filterInputVal" class="filter-raw-input" :placeholder="NUMERIC_FIELDS.has(filterField) ? '数值: >14, >=5, <10...' : '搜索关键词...'" @input="filterInputVal = $event.target.value" @keyup.enter="applyFilter()" />
+          <!-- 文本字段：单一搜索框 -->
+          <input v-if="!NUMERIC_FIELDS.has(filterField)" ref="filterRawRef" :value="filterInputVal" class="filter-raw-input" placeholder="搜索关键词..." @input="filterInputVal = $event.target.value" @keyup.enter="applyFilter()" />
+          <!-- 数值字段：符号下拉 + 数值输入 -->
+          <div v-else class="filter-num-row">
+            <select v-model="filterNumOpVal" class="filter-op-select">
+              <option v-for="op in ['>','>=','=','<=','<']" :key="op" :value="op">{{ op }}</option>
+            </select>
+            <input ref="filterRawRef" :value="filterNumInputVal" class="filter-raw-input" style="flex:1" type="number" placeholder="数值" @input="filterNumInputVal = $event.target.value" @keyup.enter="applyFilter()" />
+          </div>
           <div v-if="!filterInputVal && distinctFilterValues.length" class="filter-distinct-list">
             <div class="filter-distinct-title">当前页可选值</div>
             <div v-for="v in distinctFilterValues" :key="v" class="filter-distinct-item">
@@ -762,6 +798,10 @@ function handleDropdownSelect(key) {
   font-size: 13px; outline: none;
 }
 .filter-raw-input:focus { border-color: #1677ff; box-shadow: 0 0 0 2px rgba(22,119,255,0.1); }
+.filter-num-row { display: flex; align-items: center; gap: 8px; }
+.filter-op-select { height: 30px; width: 60px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 14px; text-align: center; cursor: pointer; outline: none; padding-left: 2px; padding-right: 0; }
+.filter-op-select:focus { border-color: #1677ff; }
+.filter-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0 8px; flex-shrink: 0; }
 .filter-distinct-list {
   max-height: 180px;
   overflow-y: auto;
