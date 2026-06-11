@@ -221,6 +221,7 @@ function renderRatioTag(value) {
 }
 
 const replenishColumns = [
+  { type: 'selection', multiple: true, width: 40, fixed: 'left' },
   { title: '站点', key: 'warehouseNames', width: 110, ellipsis: true, fixed: 'left' },
   { title: 'SKU', key: 'sku', width: 150, ellipsis: true, fixed: 'left' },
   { title: '等级', key: 'skuLevel', width: 80, render: (row) => row.skuLevel ?? '' },
@@ -306,8 +307,12 @@ const {
   init: initColConfig, openDrawer, apply: applyColConfig,
   toggleAll, toggleColumn, onDragStart, onDragOver, onDrop, onDragEnd,
 } = useColumnConfig(['warehouseNames', 'sku'], allColumnMap)
+const selectionColumn = replenishColumns[0]  // type: 'selection'
 const colByKey = replenishColumns.reduce((m, c) => { if (c.key) m[c.key] = c; return m }, {})
-const visibleColumns = computed(() => visibleKeys.value.map(k => colByKey[k]).filter(Boolean))
+const visibleColumns = computed(() => {
+  const ordered = visibleKeys.value.map(k => colByKey[k]).filter(Boolean)
+  return [selectionColumn, ...ordered]
+})
 const visibleScrollX = computed(() => visibleColumns.value.reduce((s, c) => s + (Number(c?.width) || 100), 0))
 
 async function loadInventoryOverview() {
@@ -391,7 +396,10 @@ async function handleUploadExcel() {
   input.click()
 }
 
+const checkedRowKeys = ref([])
+
 const importExportOptions = [
+  { label: '导出 Excel', key: 'exportExcel' },
   { label: '导入销量报表', key: 'uploadSales' },
   { label: '导入利润率', key: 'uploadProfitRate' },
   { label: '导入退货率', key: 'uploadReturnRate' },
@@ -434,9 +442,44 @@ function handleUploadReturnRate() {
 }
 
 function handleDropdownSelect(key) {
-  if (key === 'uploadSales') handleUploadExcel()
+  if (key === 'exportExcel') handleExportExcel()
+  else if (key === 'uploadSales') handleUploadExcel()
   else if (key === 'uploadProfitRate') handleUploadProfitRate()
   else if (key === 'uploadReturnRate') handleUploadReturnRate()
+}
+
+async function handleExportExcel() {
+  importExportLoading.value = true
+  try {
+    const colKeys = visibleKeys.value
+    const colTitles = colKeys.map(k => allColumnMap[k] || k)
+    const body = { colKeys, colTitles }
+    if (activeFilters.value.length) {
+      body.filters = activeFilters.value.map(f => ({ field: f.field, value: f.value }))
+    }
+    // 只有部分选中才导出指定行，全选则不传 rowKeys → 导出全部筛选数据
+    if (checkedRowKeys.value.length && checkedRowKeys.value.length < filteredRows.length) {
+      body.rowKeys = checkedRowKeys.value
+    }
+    const token = JSON.parse(localStorage.getItem('inventory-auth-session') || '{}').token || ''
+    const base = import.meta.env.VITE_API_BASE_URL || window.location.origin
+    const resp = await fetch(base + '/api/inventory-overview/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    })
+    if (!resp.ok) throw new Error('导出失败')
+    const blob = await resp.blob()
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = '补货_' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.xlsx'
+    a.click()
+    message.success('导出成功')
+  } catch (e) {
+    message.error(e.message || '导出失败')
+  } finally {
+    importExportLoading.value = false
+  }
 }
 
 </script>
@@ -506,6 +549,7 @@ function handleDropdownSelect(key) {
         :scroll-x="visibleScrollX"
         :max-height="replenishMaxHeight"
         :row-key="(row) => `${String(row?.warehouseNames ?? '').trim()}|${String(row?.sku ?? '').trim()}`"
+        v-model:checked-row-keys="checkedRowKeys"
         :pagination="{
           page: query.page,
           pageSize: query.size,

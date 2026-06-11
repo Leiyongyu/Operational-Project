@@ -77,7 +77,7 @@ public class InventoryOverviewController {
         return Result.ok("ok");
     }
 
-    /** 导出选中行到 Excel */
+    /** 导出 Excel：支持筛选 + 选中行 + 列配置 */
     @PostMapping("/export")
     public void export(@RequestBody Map<String, Object> body,
                        HttpServletRequest request, HttpServletResponse response) throws Exception {
@@ -89,12 +89,33 @@ public class InventoryOverviewController {
         List<String> colTitles = (List<String>) body.getOrDefault("colTitles", Collections.emptyList());
         @SuppressWarnings("unchecked")
         List<String> colKeys = (List<String>) body.getOrDefault("colKeys", Collections.emptyList());
+        @SuppressWarnings("unchecked")
+        List<Map<String, String>> filters = (List<Map<String, String>>) body.getOrDefault("filters", Collections.emptyList());
 
+        // 有筛选条件则先筛选
         List<InventoryOverviewItem> all = overviewService.filterOverview(null, null, userId, role);
-        Set<String> keySet = new HashSet<>(rowKeys);
-        List<InventoryOverviewItem> selected = new ArrayList<>();
-        for (InventoryOverviewItem item : all)
-            if (keySet.contains(item.getWarehouseNames() + "|" + item.getSku())) selected.add(item);
+        if (!filters.isEmpty()) {
+            OverviewSearchRequest req = new OverviewSearchRequest();
+            List<OverviewSearchRequest.FilterItem> fitems = new ArrayList<>();
+            for (Map<String, String> m : filters) {
+                OverviewSearchRequest.FilterItem fi = new OverviewSearchRequest.FilterItem();
+                fi.setField(m.get("field")); fi.setValue(m.get("value"));
+                fitems.add(fi);
+            }
+            req.setFilters(fitems);
+            req.setSize(Integer.MAX_VALUE);
+            all = overviewService.search(req, userId, role).getRecords();
+        }
+
+        // 有选中行则只导出选中行
+        List<InventoryOverviewItem> selected;
+        if (!rowKeys.isEmpty()) {
+            Set<String> keySet = new HashSet<>(rowKeys);
+            selected = all.stream().filter(item ->
+                keySet.contains(item.getWarehouseNames() + "|" + item.getSku())).collect(java.util.stream.Collectors.toList());
+        } else {
+            selected = all;
+        }
 
         Workbook wb = new XSSFWorkbook(); Sheet sheet = wb.createSheet("库存总览");
         Row hr = sheet.createRow(0);

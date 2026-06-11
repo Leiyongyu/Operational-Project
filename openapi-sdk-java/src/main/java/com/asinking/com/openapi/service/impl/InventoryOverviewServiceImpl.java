@@ -179,7 +179,7 @@ public class InventoryOverviewServiceImpl implements InventoryOverviewService {
         }
         // 分页
         long p = req.getPage() <= 0 ? 1 : req.getPage();
-        long s = req.getSize() <= 0 ? 20 : Math.min(req.getSize(), 200);
+        long s = req.getSize() <= 0 ? 20 : req.getSize();
         long total = filtered.size();
         long from = (p - 1) * s;
         if (from >= total) return new PageResult<>(total, p, s, Collections.emptyList());
