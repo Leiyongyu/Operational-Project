@@ -44,7 +44,7 @@ public class PurchasePlanController {
     }
 
     /** 上传 Excel 文件并创建采购计划。 */
-    @OperationLog("导入")
+    @OperationLog(value = "导入", target = "采购计划上传")
     @PostMapping("/upload")
     public Result<PurchasePlanCreateResponse> upload(@RequestParam("file") MultipartFile file) throws Exception {
         return Result.ok(service.uploadAndCreate(file));

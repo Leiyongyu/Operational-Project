@@ -31,9 +31,9 @@ public interface EbayProductDedupService {
     Map<String, java.math.BigDecimal> batchGetFloorPrices();
 
     /** 从 Excel 导入利润率，按中间码精确匹配更新 profit_rate */
-    java.util.Map<String, Integer> importProfitRate(byte[] fileBytes);
+    java.util.Map<String, Object> importProfitRate(byte[] fileBytes);
     /** 从 Excel 导入退货率，按中间码精确匹配更新 return_rate */
-    java.util.Map<String, Integer> importReturnRate(byte[] fileBytes);
+    java.util.Map<String, Object> importReturnRate(byte[] fileBytes);
 
     List<EbayProductDedupEntity> listAll();
 }

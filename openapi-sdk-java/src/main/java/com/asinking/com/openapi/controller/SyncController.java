@@ -88,35 +88,35 @@ public class SyncController {
         String ip = getClientIp();
 
         // 仓库
-        result.put("warehouse", runStep("同步", "仓库", apiPath, operator, ip, () -> {
+        result.put("warehouse", runStep("同步外服", "领星-仓库信息", apiPath, operator, ip, () -> {
             long t = System.currentTimeMillis();
             WarehouseSyncResponse r = warehouseService.syncOverseaWarehouses(new WarehouseSyncRequest());
             return map("inserted", r.getInserted(), "updated", r.getUpdated(), "elapsed", ms(t));
         }));
 
         // eBay商品
-        result.put("ebayItems", runStep("同步", "eBay商品", apiPath, operator, ip, () -> {
+        result.put("ebayItems", runStep("同步外服", "领星-eBay商品刊登", apiPath, operator, ip, () -> {
             long t = System.currentTimeMillis();
             var r = ebayService.syncAllEbayItems(null);
             return map("total", r.getRemoteTotal(), "elapsed", ms(t));
         }));
 
         // 库存
-        result.put("inventory", runStep("同步", "库存", apiPath, operator, ip, () -> {
+        result.put("inventory", runStep("同步外服", "领星-库存明细", apiPath, operator, ip, () -> {
             long t = System.currentTimeMillis();
             WarehouseInventoryDetailSyncResponse r = inventoryService.syncAllInventoryDetails(null);
             return map("inserted", r.getInserted(), "elapsed", ms(t));
         }));
 
         // 谷仓仓库
-        result.put("goodcangWarehouses", runStep("同步", "谷仓仓库", apiPath, operator, ip, () -> {
+        result.put("goodcangWarehouses", runStep("同步外服", "谷仓-仓库信息", apiPath, operator, ip, () -> {
             long t = System.currentTimeMillis();
             var r = goodcangSyncService.syncWarehouses();
             return map("inserted", r.getInserted(), "elapsed", ms(t));
         }));
 
         // 谷仓入库单
-        result.put("goodcangGrn", runStep("同步", "谷仓入库单", apiPath, operator, ip, () -> {
+        result.put("goodcangGrn", runStep("同步外服", "谷仓-入库单", apiPath, operator, ip, () -> {
             long t = System.currentTimeMillis();
             String to = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
             var r = goodcangSyncService.syncGrn("2026-01-01 00:00:00", to);
@@ -124,21 +124,21 @@ public class SyncController {
         }));
 
         // 库存流水
-        result.put("statement", runStep("同步", "库存流水", apiPath, operator, ip, () -> {
+        result.put("statement", runStep("同步外服", "领星-库存流水", apiPath, operator, ip, () -> {
             long t = System.currentTimeMillis();
             var r = statementService.syncStatements(now.minusDays(90).toString(), now.toString());
             return map("inserted", r.getInserted(), "elapsed", ms(t));
         }));
 
         // 采购单
-        result.put("purchaseOrder", runStep("同步", "采购单", apiPath, operator, ip, () -> {
+        result.put("purchaseOrder", runStep("同步外服", "领星-采购单", apiPath, operator, ip, () -> {
             long t = System.currentTimeMillis();
             var r = purchaseOrderService.sync(now.minusDays(90).toString(), now.toString());
             return map("inserted", r.getInserted(), "elapsed", ms(t));
         }));
 
         // 采购计划
-        result.put("purchasePlan", runStep("同步", "采购计划", apiPath, operator, ip, () -> {
+        result.put("purchasePlan", runStep("同步外服", "领星-采购计划", apiPath, operator, ip, () -> {
             long t = System.currentTimeMillis();
             var r = purchasePlanQueryService.sync(now.minusDays(90).toString(), now.toString());
             return map("inserted", r.getInserted(), "elapsed", ms(t));

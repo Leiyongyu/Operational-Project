@@ -209,34 +209,30 @@ public class GoodcangCallbackController {
     }
 
     /** 导入近30天利润率 Excel（按中间码匹配更新 ebay_product_dedup.profit_rate） */
-    @OperationLog("导入")
+    @OperationLog(value = "导入", target = "利润率导入")
     @PostMapping("/import-profit-rate")
     public Object importProfitRate(@RequestParam("file") org.springframework.web.multipart.MultipartFile file) throws Exception {
         return dedupService.importProfitRate(file.getBytes());
     }
 
     /** 导入退货率 Excel（按中间码匹配更新 ebay_product_dedup.return_rate） */
-    @OperationLog("导入")
+    @OperationLog(value = "导入", target = "退货率导入")
     @PostMapping("/import-return-rate")
     public Object importReturnRate(@RequestParam("file") org.springframework.web.multipart.MultipartFile file) throws Exception {
         return dedupService.importReturnRate(file.getBytes());
     }
 
     /** 导入商品单价 Excel（按 middle_code 匹配更新 price） */
-    @OperationLog("导入")
+    @OperationLog(value = "导入", target = "商品单价导入")
     @PostMapping("/import-price")
     public Map<String, Object> importPrice(@RequestParam("file") org.springframework.web.multipart.MultipartFile file) throws Exception {
-        Map<String, Integer> stats = productService.importPriceFromExcel(file.getBytes());
-        Map<String, Object> resp = new LinkedHashMap<>();
-        resp.put("total", stats.get("total"));
-        resp.put("updated", stats.get("updated"));
-        resp.put("skipped", stats.get("skipped"));
-        resp.put("success", true);
-        return resp;
+        Map<String, Object> stats = productService.importPriceFromExcel(file.getBytes());
+        stats.put("success", true);
+        return stats;
     }
 
     /** 同步谷仓商品到数据库（按中间码清洗，增量 upsert） */
-    @OperationLog("同步")
+    @OperationLog(value = "同步", target = "谷仓-商品信息同步")
     @PostMapping("/sync-product")
     public Object syncProduct() {
         return productService.syncFromApi();

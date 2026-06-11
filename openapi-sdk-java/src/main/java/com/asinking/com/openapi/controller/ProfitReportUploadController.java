@@ -31,7 +31,7 @@ public class ProfitReportUploadController {
     /**
      * 上传 Excel，按 (msku, ship_time, store_name, country_code) 增量 upsert。
      */
-    @OperationLog("导入")
+    @OperationLog(value = "导入", target = "利润报表导入")
     @PostMapping("/upload")
     @Transactional
     public Result<Map<String, Object>> upload(@RequestParam("file") MultipartFile file) throws Exception {

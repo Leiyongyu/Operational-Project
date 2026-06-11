@@ -414,7 +414,8 @@ function handleUploadProfitRate() {
     importExportLoading.value = true
     try {
       const form = new FormData(); form.append('file', file)
-      const resp = await fetch('/api/goodcang/import-profit-rate', { method: 'POST', body: form })
+      const token = JSON.parse(localStorage.getItem('inventory-auth-session') || '{}').token || ''
+      const resp = await fetch('/api/goodcang/import-profit-rate', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form })
       const data = await resp.json()
       message.success('导入完成：共' + data.total + '条，更新' + data.updated + '，跳过' + data.skipped)
     } catch (err) { message.error('导入失败') }
@@ -432,7 +433,8 @@ function handleUploadReturnRate() {
     importExportLoading.value = true
     try {
       const form = new FormData(); form.append('file', file)
-      const resp = await fetch('/api/goodcang/import-return-rate', { method: 'POST', body: form })
+      const token = JSON.parse(localStorage.getItem('inventory-auth-session') || '{}').token || ''
+      const resp = await fetch('/api/goodcang/import-return-rate', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form })
       const data = await resp.json()
       message.success('导入完成：共' + data.total + '条，更新' + data.updated + '，跳过' + data.skipped)
     } catch (err) { message.error('导入失败') }

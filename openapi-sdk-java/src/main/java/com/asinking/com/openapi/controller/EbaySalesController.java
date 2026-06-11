@@ -32,7 +32,7 @@ public class EbaySalesController {
     }
 
     /** 上传 eBay 销量 Excel 文件，解析并导入数据，按 (平台订单号+SKU) 去重更新。 */
-    @OperationLog("导入")
+    @OperationLog(value = "导入", target = "eBay销量导入")
     @PostMapping("/upload")
     @Transactional
     public Result<Map<String, Object>> upload(@RequestParam("file") MultipartFile file) throws Exception {
@@ -49,14 +49,20 @@ public class EbaySalesController {
         for (EbaySalesEntity e : mapper.selectList(null))
             existing.put(e.getPlatformOrderNo() + "|" + e.getSku(), e);
 
-        int inserted = 0, updated = 0;
+        int inserted = 0, updated = 0, skipped = 0;
+        List<Map<String, Object>> skipDetails = new ArrayList<>();
         for (int r = 1; r <= sheet.getLastRowNum(); r++) {
             Row row = sheet.getRow(r);
             if (row == null) continue;
 
             String orderNo = ExcelUtils.getCellString(row.getCell(colOrderNo));
             String sku = ExcelUtils.getCellString(row.getCell(colSku));
-            if (orderNo.isEmpty() || sku.isEmpty()) continue;
+            if (orderNo.isEmpty() || sku.isEmpty()) {
+                Map<String, Object> d = new LinkedHashMap<>();
+                d.put("row", r + 1); d.put("orderNo", orderNo); d.put("sku", sku);
+                d.put("reason", "平台订单号或SKU为空");
+                skipDetails.add(d); skipped++; continue;
+            }
 
             String key = orderNo + "|" + sku;
             EbaySalesEntity e = existing.get(key);
@@ -83,6 +89,8 @@ public class EbaySalesController {
         Map<String, Object> result = new HashMap<>();
         result.put("inserted", inserted);
         result.put("updated", updated);
+        result.put("skipped", skipped);
+        result.put("skipDetails", skipDetails);
 
         // 销量数据变更后刷新运营数据快照
         try { overviewService.refreshSnapshot(); } catch (Exception ignored) {}

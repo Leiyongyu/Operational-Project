@@ -166,7 +166,8 @@ async function handleUploadPrice() {
     try {
       const form = new FormData()
       form.append('file', file)
-      const resp = await fetch('/api/goodcang/import-price', { method: 'POST', body: form })
+      const token = JSON.parse(localStorage.getItem('inventory-auth-session') || '{}').token || ''
+      const resp = await fetch('/api/goodcang/import-price', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form })
       const data = await resp.json()
       message.success(`导入完成：共${data.total}条，更新${data.updated}，跳过${data.skipped}`)
     } catch (err) {
@@ -181,7 +182,8 @@ async function handleUploadPrice() {
 async function handleSyncGoodcangProducts() {
   importExportLoading.value = true
   try {
-    const resp = await fetch('/api/goodcang/sync-product', { method: 'POST' })
+    const token = JSON.parse(localStorage.getItem('inventory-auth-session') || '{}').token || ''
+    const resp = await fetch('/api/goodcang/sync-product', { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
     const data = await resp.json()
     message.success(`同步完成：共${data.total}条，新增${data.inserted}，更新${data.updated}`)
   } catch (e) {
@@ -258,9 +260,10 @@ const columns = [
           if (v === (row.trackingPrice != null ? String(row.trackingPrice) : '')) return
           try {
             const price = v && !isNaN(parseFloat(v)) ? v : ''
+            const token = JSON.parse(localStorage.getItem('inventory-auth-session') || '{}').token || ''
             const resp = await fetch('/api/goodcang/calc-tracking', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
               body: JSON.stringify({ site: row.site, sku: row.sku, trackingPrice: price })
             })
             const data = await resp.json()

@@ -30,9 +30,10 @@ public class GoodcangProductService {
     }
 
     /** 从谷仓 API 全量拉取商品信息，按中间码清洗，增量 upsert */
-    public Map<String, Integer> syncFromApi() {
+    public Map<String, Object> syncFromApi() {
         List<Map<String, Object>> allRows = new ArrayList<>();
-        int page = 1;
+        List<Map<String, Object>> skipDetails = new ArrayList<>();
+        int page = 1, rawSkipped = 0;
         try {
             while (true) {
                 Map<String, Object> resp = client.getProductList(page, 100);
@@ -48,69 +49,56 @@ public class GoodcangProductService {
             throw new RuntimeException("拉取失败: " + e.getMessage());
         }
 
-        // 按中间码清洗去重，同码保留第一条
         Map<String, Map<String, Object>> deduped = new LinkedHashMap<>();
         for (Map<String, Object> row : allRows) {
             String sku = str(row, "product_sku");
-            if (sku.isEmpty()) continue;
+            if (sku.isEmpty()) {
+                Map<String, Object> d = new LinkedHashMap<>();
+                d.put("reason", "product_sku为空"); skipDetails.add(d); rawSkipped++; continue;
+            }
             String mid = InventoryUtils.extractMiddleCodeForInventory(sku);
-            if (mid.isEmpty()) continue;
+            if (mid.isEmpty()) {
+                Map<String, Object> d = new LinkedHashMap<>();
+                d.put("sku", sku); d.put("reason", "无法提取中间码"); skipDetails.add(d); rawSkipped++; continue;
+            }
             deduped.putIfAbsent(mid, row);
         }
 
-        // 加载已有记录
         Map<String, GoodcangProductEntity> existing = new LinkedHashMap<>();
         for (GoodcangProductEntity e : mapper.selectList(null)) {
-            if (StringUtils.hasText(e.getMiddleCode())) {
-                existing.put(e.getMiddleCode(), e);
-            }
+            if (StringUtils.hasText(e.getMiddleCode())) existing.put(e.getMiddleCode(), e);
         }
 
         int inserted = 0, updated = 0;
         for (Map.Entry<String, Map<String, Object>> e : deduped.entrySet()) {
-            String mid = e.getKey();
-            Map<String, Object> row = e.getValue();
+            String mid = e.getKey(); Map<String, Object> row = e.getValue();
             GoodcangProductEntity ent = existing.get(mid);
             boolean isNew = ent == null;
             if (isNew) ent = new GoodcangProductEntity();
-
             ent.setMiddleCode(mid);
-            ent.setRealWeight(bd(row, "product_weight"));
-            ent.setRealLength(bd(row, "product_length"));
-            ent.setRealWidth(bd(row, "product_width"));
-            ent.setRealHeight(bd(row, "product_height"));
+            ent.setRealWeight(bd(row, "product_weight")); ent.setRealLength(bd(row, "product_length"));
+            ent.setRealWidth(bd(row, "product_width")); ent.setRealHeight(bd(row, "product_height"));
             ent.setProductNameCn(str(row, "product_title_cn"));
-            // 体积 = 长*宽*高 / 6000，保留2位小数
-            BigDecimal vLen = bd(row, "product_length");
-            BigDecimal vWid = bd(row, "product_width");
-            BigDecimal vHei = bd(row, "product_height");
-            if (vLen != null && vWid != null && vHei != null
-                    && vLen.compareTo(BigDecimal.ZERO) > 0) {
-                ent.setVolume(vLen.multiply(vWid).multiply(vHei)
-                        .divide(BigDecimal.valueOf(6000), 2, java.math.RoundingMode.HALF_UP));
-            }
+            BigDecimal vLen = bd(row, "product_length"), vWid = bd(row, "product_width"), vHei = bd(row, "product_height");
+            if (vLen != null && vWid != null && vHei != null && vLen.compareTo(BigDecimal.ZERO) > 0)
+                ent.setVolume(vLen.multiply(vWid).multiply(vHei).divide(BigDecimal.valueOf(6000), 2, java.math.RoundingMode.HALF_UP));
             ent.setUpdateTime(LocalDateTime.now());
-            if (isNew) {
-                ent.setCreateTime(LocalDateTime.now());
-                mapper.insert(ent);
-                inserted++;
-            } else {
-                mapper.updateById(ent);
-                updated++;
-            }
+            if (isNew) { ent.setCreateTime(LocalDateTime.now()); mapper.insert(ent); inserted++; }
+            else { mapper.updateById(ent); updated++; }
         }
 
         LOG.info("谷仓商品同步完成: {}条, 新增{}, 更新{}", deduped.size(), inserted, updated);
-        Map<String, Integer> result = new LinkedHashMap<>();
-        result.put("total", deduped.size());
-        result.put("inserted", inserted);
-        result.put("updated", updated);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("total", deduped.size()); result.put("inserted", inserted); result.put("updated", updated);
+        result.put("skipped", rawSkipped); result.put("skipDetails", skipDetails);
         return result;
     }
 
     /** 从 Excel 导入单价，按 middle_code 完全匹配更新 price 字段 */
-    public Map<String, Integer> importPriceFromExcel(byte[] fileBytes) {
-        Map<String, BigDecimal> priceMap = new LinkedHashMap<>(); // middle_code → price
+    public Map<String, Object> importPriceFromExcel(byte[] fileBytes) {
+        Map<String, BigDecimal> priceMap = new LinkedHashMap<>();
+        List<Map<String, Object>> skipDetails = new ArrayList<>();
+        int parseSkipped = 0;
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(fileBytes))) {
             Sheet sheet = wb.getSheetAt(0);
             int colSku = -1, colPrice = -1;
@@ -121,34 +109,31 @@ public class GoodcangProductService {
                 else if (h.equalsIgnoreCase("price") || h.contains("单价")) colPrice = c;
             }
             for (int r = 1; r <= sheet.getLastRowNum(); r++) {
-                Row row = sheet.getRow(r);
-                if (row == null) continue;
+                Row row = sheet.getRow(r); if (row == null) continue;
                 String sku = getStr(row, colSku);
                 BigDecimal price = getBd(row, colPrice);
-                if (!sku.isEmpty() && price != null) priceMap.put(sku, price);
+                if (sku.isEmpty() || price == null) {
+                    Map<String, Object> d = new LinkedHashMap<>(); d.put("row", r + 1); d.put("sku", sku);
+                    d.put("reason", "SKU或价格为空"); skipDetails.add(d); parseSkipped++; continue;
+                }
+                priceMap.put(sku, price);
             }
-        } catch (Exception e) {
-            throw new RuntimeException("解析Excel失败: " + e.getMessage());
-        }
+        } catch (Exception e) { throw new RuntimeException("解析Excel失败: " + e.getMessage()); }
 
         int updated = 0, skipped = 0;
         for (Map.Entry<String, BigDecimal> e : priceMap.entrySet()) {
             GoodcangProductEntity ent = mapper.selectOne(
-                    new LambdaQueryWrapper<GoodcangProductEntity>()
-                            .eq(GoodcangProductEntity::getMiddleCode, e.getKey()));
+                    new LambdaQueryWrapper<GoodcangProductEntity>().eq(GoodcangProductEntity::getMiddleCode, e.getKey()));
             if (ent != null) {
-                ent.setPrice(e.getValue());
-                ent.setUpdateTime(LocalDateTime.now());
-                mapper.updateById(ent);
-                updated++;
+                ent.setPrice(e.getValue()); ent.setUpdateTime(LocalDateTime.now()); mapper.updateById(ent); updated++;
             } else {
-                skipped++;
+                Map<String, Object> d = new LinkedHashMap<>(); d.put("middleCode", e.getKey());
+                d.put("price", e.getValue()); d.put("reason", "中间码在goodcang_product表中不存在"); skipDetails.add(d); skipped++;
             }
         }
-        Map<String, Integer> result = new LinkedHashMap<>();
-        result.put("total", priceMap.size());
-        result.put("updated", updated);
-        result.put("skipped", skipped);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("total", priceMap.size()); result.put("updated", updated); result.put("skipped", skipped + parseSkipped);
+        result.put("skipDetails", skipDetails);
         return result;
     }
 

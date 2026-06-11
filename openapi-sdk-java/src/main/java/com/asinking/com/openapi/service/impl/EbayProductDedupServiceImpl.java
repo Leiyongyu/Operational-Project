@@ -195,10 +195,10 @@ public class EbayProductDedupServiceImpl implements EbayProductDedupService {
     }
 
     @Override
-    public Map<String, Integer> importProfitRate(byte[] fileBytes) {
-        // middleCode → { site → rate }
+    public Map<String, Object> importProfitRate(byte[] fileBytes) {
         Map<String, Map<String, java.math.BigDecimal>> allRates = new LinkedHashMap<>();
-        int totalRows = 0;
+        int totalRows = 0, parseSkipped = 0;
+        List<Map<String, Object>> skipDetails = new ArrayList<>();
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(fileBytes))) {
             DataFormatter df = new DataFormatter();
             for (int s = 0; s < wb.getNumberOfSheets(); s++) {
@@ -206,41 +206,34 @@ public class EbayProductDedupServiceImpl implements EbayProductDedupService {
                 String sheetName = sheet.getSheetName().trim();
                 String site = SHEET_TO_SITE.get(sheetName);
                 if (site == null) site = SHEET_TO_SITE.get(sheetName.toUpperCase());
-                if (site == null) { LOG.warn("未知站点sheet: {}，跳过", sheetName); continue; }
-                Row hr = sheet.getRow(0);
-                if (hr == null) continue;
+                if (site == null) {
+                    Map<String,Object> d=new LinkedHashMap<>(); d.put("sheet",sheetName); d.put("reason","未知站点"); skipDetails.add(d); continue;
+                }
+                Row hr = sheet.getRow(0); if (hr == null) continue;
                 int colSku = -1, colRate = -1;
                 for (int c = 0; c < hr.getLastCellNum(); c++) {
-                    Cell cell = hr.getCell(c);
-                    if (cell == null) continue;
+                    Cell cell = hr.getCell(c); if (cell == null) continue;
                     String h = df.formatCellValue(cell).trim();
                     if (h.equalsIgnoreCase("SKU") || h.contains("产品代码")) colSku = c;
                     else if (h.equalsIgnoreCase("Profit") || h.contains("利润率")) colRate = c;
                 }
-                if (colSku < 0) colSku = 0;
-                if (colRate < 0) colRate = 1;
+                if (colSku < 0) colSku = 0; if (colRate < 0) colRate = 1;
                 for (int r = 1; r <= sheet.getLastRowNum(); r++) {
-                    Row row = sheet.getRow(r);
-                    if (row == null) continue;
+                    Row row = sheet.getRow(r); if (row == null) continue;
                     String fullSku = df.formatCellValue(row.getCell(colSku)).trim();
                     String rateStr = df.formatCellValue(row.getCell(colRate)).trim();
-                    if (fullSku.isEmpty() || rateStr.isEmpty()) continue;
+                    if (fullSku.isEmpty() || rateStr.isEmpty()) { parseSkipped++; continue; }
                     if (rateStr.endsWith("%")) {
-                        try { rateStr = new java.math.BigDecimal(rateStr.replace("%", "").trim())
-                                .divide(new java.math.BigDecimal("100"), 6, java.math.RoundingMode.HALF_UP).toString(); } catch (Exception ignored) {}
+                        try { rateStr = new java.math.BigDecimal(rateStr.replace("%","").trim()).divide(new java.math.BigDecimal("100"),6,java.math.RoundingMode.HALF_UP).toString(); } catch(Exception ignored){}
                     }
                     String mid = InventoryUtils.extractMiddleCodeForInventory(fullSku);
                     if (mid.isEmpty()) mid = fullSku;
-                    try {
-                        allRates.computeIfAbsent(mid, k -> new LinkedHashMap<>())
-                                .put(site, new java.math.BigDecimal(rateStr));
-                        totalRows++;
-                    } catch (Exception ignored) {}
+                    try { allRates.computeIfAbsent(mid, k->new LinkedHashMap<>()).put(site, new java.math.BigDecimal(rateStr)); totalRows++; }
+                    catch (Exception ignored) { parseSkipped++; }
                 }
             }
         } catch (Exception e) { throw new RuntimeException("解析Excel失败: " + e.getMessage()); }
 
-        // 按 (site, middleCode) 匹配 ebay_product_dedup
         Map<String, EbayProductDedupEntity> dedupByKey = new LinkedHashMap<>();
         for (EbayProductDedupEntity ent : mapper.selectList(null)) {
             if (ent.getSku() == null || ent.getSku().isEmpty() || ent.getSite() == null) continue;
@@ -252,17 +245,15 @@ public class EbayProductDedupServiceImpl implements EbayProductDedupService {
             String mid = entry.getKey();
             for (Map.Entry<String, java.math.BigDecimal> se : entry.getValue().entrySet()) {
                 EbayProductDedupEntity ent = dedupByKey.get(se.getKey() + "|" + mid);
-                if (ent != null) {
-                    ent.setProfitRate(se.getValue());
-                    mapper.updateById(ent);
-                    updated++;
-                } else { skipped++; }
+                if (ent != null) { ent.setProfitRate(se.getValue()); mapper.updateById(ent); updated++; }
+                else {
+                    Map<String,Object> d=new LinkedHashMap<>(); d.put("middleCode",mid); d.put("site",se.getKey()); d.put("rate",se.getValue()); d.put("reason","在ebay_product_dedup中未匹配到(site+中间码)"); skipDetails.add(d); skipped++;
+                }
             }
         }
-        Map<String, Integer> result = new LinkedHashMap<>();
-        result.put("total", totalRows);
-        result.put("updated", updated);
-        result.put("skipped", skipped);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("total", totalRows); result.put("updated", updated); result.put("skipped", skipped + parseSkipped);
+        result.put("skipDetails", skipDetails);
         return result;
     }
 
@@ -272,35 +263,32 @@ public class EbayProductDedupServiceImpl implements EbayProductDedupService {
     }
 
     @Override
-    public Map<String, Integer> importReturnRate(byte[] fileBytes) {
+    public Map<String, Object> importReturnRate(byte[] fileBytes) {
         Map<String, java.math.BigDecimal> rateMap = new LinkedHashMap<>();
+        List<Map<String, Object>> skipDetails = new ArrayList<>();
+        int parseSkipped = 0;
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(fileBytes))) {
-            Sheet sheet = wb.getSheetAt(0);
-            Row hr = sheet.getRow(0);
+            Sheet sheet = wb.getSheetAt(0); Row hr = sheet.getRow(0);
             int colSku = -1, colRate = -1;
             DataFormatter df = new DataFormatter();
             for (int c = 0; c < hr.getLastCellNum(); c++) {
-                Cell cell = hr.getCell(c);
-                if (cell == null) continue;
+                Cell cell = hr.getCell(c); if (cell == null) continue;
                 String h = df.formatCellValue(cell).trim();
                 if (h.contains("SKU") || h.contains("产品SKU")) colSku = c;
                 else if (h.contains("各平台售后率")) colRate = c;
             }
-            if (colSku < 0) colSku = 0;
-            if (colRate < 0) colRate = 4;
+            if (colSku < 0) colSku = 0; if (colRate < 0) colRate = 4;
             for (int r = 1; r <= sheet.getLastRowNum(); r++) {
-                Row row = sheet.getRow(r);
-                if (row == null) continue;
+                Row row = sheet.getRow(r); if (row == null) continue;
                 String fullSku = df.formatCellValue(row.getCell(colSku)).trim();
                 String rateStr = df.formatCellValue(row.getCell(colRate)).trim();
-                if (fullSku.isEmpty() || rateStr.isEmpty()) continue;
+                if (fullSku.isEmpty() || rateStr.isEmpty()) { parseSkipped++; continue; }
                 if (rateStr.endsWith("%")) {
-                    try { rateStr = new java.math.BigDecimal(rateStr.replace("%", "").trim())
-                            .divide(new java.math.BigDecimal("100"), 6, java.math.RoundingMode.HALF_UP).toString(); } catch (Exception ignored) {}
+                    try { rateStr = new java.math.BigDecimal(rateStr.replace("%","").trim()).divide(new java.math.BigDecimal("100"),6,java.math.RoundingMode.HALF_UP).toString(); } catch(Exception ignored){}
                 }
                 String mid = InventoryUtils.extractMiddleCodeForInventory(fullSku);
                 if (mid.isEmpty()) mid = fullSku;
-                try { rateMap.putIfAbsent(mid, new java.math.BigDecimal(rateStr)); } catch (Exception ignored) {}
+                try { rateMap.putIfAbsent(mid, new java.math.BigDecimal(rateStr)); } catch (Exception ignored) { parseSkipped++; }
             }
         } catch (Exception e) { throw new RuntimeException("解析Excel失败: " + e.getMessage()); }
         int updated = 0, skipped = 0;
@@ -313,10 +301,13 @@ public class EbayProductDedupServiceImpl implements EbayProductDedupService {
         for (Map.Entry<String, java.math.BigDecimal> e : rateMap.entrySet()) {
             EbayProductDedupEntity ent = dedupByMid.get(e.getKey());
             if (ent != null) { ent.setReturnRate(e.getValue()); mapper.updateById(ent); updated++; }
-            else { skipped++; }
+            else {
+                Map<String,Object> d=new LinkedHashMap<>(); d.put("middleCode",e.getKey()); d.put("rate",e.getValue()); d.put("reason","在ebay_product_dedup中未匹配到"); skipDetails.add(d); skipped++;
+            }
         }
-        Map<String, Integer> result = new LinkedHashMap<>();
-        result.put("total", rateMap.size()); result.put("updated", updated); result.put("skipped", skipped);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("total", rateMap.size()); result.put("updated", updated); result.put("skipped", skipped + parseSkipped);
+        result.put("skipDetails", skipDetails);
         return result;
     }
 }

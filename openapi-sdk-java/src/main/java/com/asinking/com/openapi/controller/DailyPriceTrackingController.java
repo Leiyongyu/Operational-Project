@@ -217,7 +217,7 @@ public class DailyPriceTrackingController {
     }
 
     /** 导入最低价 Excel（按站点+SKU 保留最低价，增量 upsert） */
-    @OperationLog("导入")
+    @OperationLog(value = "导入", target = "最低价导入")
     @PostMapping("/import-lowest-price")
     public Result<Map<String, Object>> importLowestPrice(@RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
         try {
