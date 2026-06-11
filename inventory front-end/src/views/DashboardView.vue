@@ -3,7 +3,10 @@ import { computed, h, onMounted, ref } from 'vue'
 import {
   NButton,
   NCard,
+  NCheckbox,
   NDataTable,
+  NDrawer,
+  NDrawerContent,
   NDropdown,
   NSpace,
   NTag,
@@ -13,6 +16,7 @@ import { fetchInventoryOverview, refreshSnapshot } from '@/api/inventoryOverview
 import { syncAll } from '@/api/sync'
 import { uploadEbaySales } from '@/api/ebaySales'
 import { useAuthStore } from '@/stores/auth'
+import { useColumnConfig } from '@/composables/useColumnConfig'
 
 const message = useMessage()
 const authStore = useAuthStore()
@@ -67,7 +71,7 @@ const replenishColumns = [
   { title: '站点', key: 'warehouseNames', width: 180, ellipsis: true, fixed: 'left' },
   { title: 'SKU', key: 'sku', width: 140, ellipsis: true, fixed: 'left' },
 { title: 'SKU等级', key: 'skuLevel', width: 80,    render: (row) => row.skuLevel ?? '' },
-  { title: '产品名称', key: 'productName', width: 160, ellipsis: true, fixed: 'left' },
+  { title: '产品名称', key: 'productName', width: 160, ellipsis: true },
   { title: '近30利润', key: 'last30DaysProfit', width: 100,
     render: (row) => row.last30DaysProfit != null ? Number(row.last30DaysProfit).toFixed(1) + '%' : '' },
   { title: '退货率', key: 'returnRate', width: 90,
@@ -125,7 +129,21 @@ const replenishColumns = [
 ].map((c) => ({ ...c, resizable: true, minWidth: 70 }))
 
 const replenishScrollX = replenishColumns.reduce((s, c) => s + (Number(c?.width) || 100), 0)
-const replenishMaxHeight = 750
+const replenishMaxHeight = 680
+
+// ===== 列配置 =====
+const allColumnMap = replenishColumns.reduce((m, c) => {
+  if (c.key) m[c.key] = c.title
+  return m
+}, {})
+const {
+  showDrawer, visibleKeys, editingKeys, leftCols, selCols, isAllChecked,
+  init: initColConfig, openDrawer, apply: applyColConfig,
+  toggleAll, toggleColumn, onDragStart, onDragOver, onDrop, onDragEnd,
+} = useColumnConfig(['warehouseNames', 'sku'], allColumnMap)
+const colByKey = replenishColumns.reduce((m, c) => { if (c.key) m[c.key] = c; return m }, {})
+const visibleColumns = computed(() => visibleKeys.value.map(k => colByKey[k]).filter(Boolean))
+const visibleScrollX = computed(() => visibleColumns.value.reduce((s, c) => s + (Number(c?.width) || 100), 0))
 
 async function loadInventoryOverview() {
   loading.value = true
@@ -144,7 +162,8 @@ async function loadInventoryOverview() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await initColConfig('dashboard')
   loadInventoryOverview()
 })
 
@@ -286,15 +305,20 @@ function handleDropdownSelect(key) {
           <NDropdown trigger="click" :options="importExportOptions" @select="handleDropdownSelect">
             <NButton size="small" type="info" :loading="importExportLoading">导入导出</NButton>
           </NDropdown>
+          <NButton size="small" round @click="openDrawer" title="列设置">
+            <template #icon>
+              <svg viewBox="0 0 1024 1024" width="14" height="14"><path fill="currentColor" d="M512 938.666667a32.032 32.032 0 0 1-15.648-4.085334l-352-197.333333A32 32 0 0 1 128 709.333333v-394.666666a32 32 0 0 1 16.352-27.914667l352-197.333333a32 32 0 0 1 31.296 0l352 197.333333A32 32 0 0 1 896 314.666667v394.666666a32 32 0 0 1-16.352 27.914667l-352 197.333333A32 32 0 0 1 512 938.666667zM192 690.581333L512 869.973333l320-179.392V333.408L512 154.016 192 333.408v357.173333zM512 682.666667c-94.101333 0-170.666667-76.565333-170.666667-170.666667S417.898667 341.333333 512 341.333333s170.666667 76.565333 170.666667 170.666667-76.565333 170.666667-170.666667 170.666667z m0-277.333334c-58.816 0-106.666667 47.850667-106.666667 106.666667s47.850667 106.666667 106.666667 106.666667 106.666667-47.850667 106.666667-106.666667S570.816 405.333333 512 405.333333z"/></svg>
+            </template>
+          </NButton>
         </NSpace>
       </template>
 
       <NDataTable
         :loading="loading"
-        :columns="replenishColumns"
+        :columns="visibleColumns"
         :data="filteredRows"
         :bordered="false"
-        :scroll-x="replenishScrollX"
+        :scroll-x="visibleScrollX"
         :max-height="replenishMaxHeight"
         :row-key="(row) => `${String(row?.warehouseNames ?? '').trim()}|${String(row?.sku ?? '').trim()}`"
         :pagination="{ pageSize: 100 }"
@@ -302,6 +326,49 @@ function handleDropdownSelect(key) {
       />
     </NCard>
     </div>
+
+    <!-- ===== 列配置抽屉 ===== -->
+    <NDrawer v-model:show="showDrawer" :width="480" placement="right">
+      <NDrawerContent title="列设置" closable>
+        <div class="col-config-body">
+          <div class="col-config-left">
+            <NSpace vertical size="small">
+              <NCheckbox :checked="isAllChecked" @update:checked="toggleAll">全选</NCheckbox>
+              <NCheckbox
+                v-for="c in leftCols"
+                :key="c.key"
+                :checked="c.checked"
+                :disabled="c.disabled"
+                @update:checked="toggleColumn(c.key)"
+              >{{ c.title }}</NCheckbox>
+            </NSpace>
+          </div>
+          <div class="col-config-right">
+            <div class="col-config-right-title">已选字段（拖拽排序）</div>
+            <div
+              v-for="(c, idx) in selCols"
+              :key="c.key"
+              class="col-config-item"
+              :class="{ 'col-config-item-fixed': c.fixed }"
+              :draggable="!c.fixed"
+              @dragstart="onDragStart(idx)"
+              @dragover="onDragOver"
+              @drop="onDrop(idx)"
+              @dragend="onDragEnd"
+            >
+              <span class="col-config-drag" :style="{ visibility: c.fixed ? 'hidden' : 'visible' }">⠿</span>
+              <span>{{ c.title }}</span>
+            </div>
+          </div>
+        </div>
+        <template #footer>
+          <NSpace justify="end">
+            <NButton @click="showDrawer = false">取消</NButton>
+            <NButton type="primary" @click="applyColConfig('dashboard', message)">应用</NButton>
+          </NSpace>
+        </template>
+      </NDrawerContent>
+    </NDrawer>
   </div>
 </template>
 
@@ -430,4 +497,56 @@ function handleDropdownSelect(key) {
 
 @media (max-width: 1200px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 640px) { .kpi-grid { grid-template-columns: 1fr; } }
+
+/* ===== 列配置抽屉 ===== */
+.col-config-body {
+  display: flex;
+  gap: 16px;
+  min-height: 300px;
+}
+.col-config-left {
+  width: 160px;
+  flex-shrink: 0;
+  padding: 8px;
+  border-right: 1px solid #eee;
+  max-height: 400px;
+  overflow-y: auto;
+}
+.col-config-right {
+  flex: 1;
+  padding: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+.col-config-right-title {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 8px;
+}
+.col-config-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  background: #fafafa;
+  border-radius: 4px;
+  cursor: grab;
+  font-size: 13px;
+  border: 1px solid #eee;
+  transition: background 0.15s;
+}
+.col-config-item:hover {
+  background: #e6f4ff;
+}
+.col-config-item-fixed {
+  background: #f5f5f5;
+  color: #999;
+  cursor: default;
+}
+.col-config-drag {
+  color: #bbb;
+  font-size: 14px;
+  user-select: none;
+}
 </style>

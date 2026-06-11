@@ -1,10 +1,11 @@
 <script setup>
 import { h, onMounted, ref } from 'vue'
 import {
-  NButton, NCard, NDataTable, NDropdown, NInput, NSpace, NTag, useMessage,
+  NButton, NCard, NCheckbox, NDataTable, NDrawer, NDrawerContent, NDropdown, NInput, NSpace, NTag, useMessage,
 } from 'naive-ui'
 import { fetchDailyPriceTracking, refreshDailyPriceTrackingSnapshot, exportDailyPriceTracking, importLowestPrice, saveOe, saveRemark } from '@/api/dailyPriceTracking'
 import { useDataTable } from '@/composables/useDataTable'
+import { useColumnConfig } from '@/composables/useColumnConfig'
 
 const message = useMessage()
 
@@ -18,9 +19,10 @@ const { loading, records, total, query, loadData } = useDataTable(
 const remarkInputs = {}  // key: "site|sku" → 当前输入值
 const oeInputs = {}       // key: "site|sku" → 当前 OE 输入值
 
-const tableMaxHeight = 750
+const tableMaxHeight = 680
 
-onMounted(() => {
+onMounted(async () => {
+  await initColConfig('daily-price-tracking')
   loadData()
 })
 
@@ -270,7 +272,22 @@ const columns = [
   },
 ].map((c) => ({ ...c, resizable: false, minWidth: 70 }))
 
-const scrollX = columns.reduce((s, c) => s + (Number(c?.width) || 100), 0)
+// ===== 列配置 =====
+const selectionCol = columns[0]  // type: 'selection'
+const dataColumns = columns.filter(c => c.key)
+const allColumnMap = dataColumns.reduce((m, c) => { m[c.key] = c.title; return m }, {})
+const {
+  showDrawer, visibleKeys, editingKeys, leftCols, selCols, isAllChecked,
+  init: initColConfig, openDrawer, apply: applyColConfig,
+  toggleAll, toggleColumn, onDragStart, onDragOver, onDrop, onDragEnd,
+} = useColumnConfig(['site', 'sku'], allColumnMap)
+const colByKey2 = dataColumns.reduce((m, c) => { m[c.key] = c; return m }, {})
+const visibleColumns = computed(() => {
+  const ordered = visibleKeys.value.map(k => colByKey2[k]).filter(Boolean)
+  return [selectionCol, ...ordered]
+})
+
+const scrollX = computed(() => visibleColumns.value.reduce((s, c) => s + (Number(c?.width) || 100), 0))
 const checkedRowKeys = ref([])
 </script>
 
@@ -283,6 +300,11 @@ const checkedRowKeys = ref([])
         <NDropdown trigger="click" :options="importExportOptions" @select="handleDropdownSelect">
           <NButton type="primary" :loading="importExportLoading">导入导出</NButton>
         </NDropdown>
+        <NButton size="small" round @click="openDrawer" title="列设置">
+          <template #icon>
+            <svg viewBox="0 0 1024 1024" width="14" height="14"><path fill="currentColor" d="M512 938.666667a32.032 32.032 0 0 1-15.648-4.085334l-352-197.333333A32 32 0 0 1 128 709.333333v-394.666666a32 32 0 0 1 16.352-27.914667l352-197.333333a32 32 0 0 1 31.296 0l352 197.333333A32 32 0 0 1 896 314.666667v394.666666a32 32 0 0 1-16.352 27.914667l-352 197.333333A32 32 0 0 1 512 938.666667zM192 690.581333L512 869.973333l320-179.392V333.408L512 154.016 192 333.408v357.173333zM512 682.666667c-94.101333 0-170.666667-76.565333-170.666667-170.666667S417.898667 341.333333 512 341.333333s170.666667 76.565333 170.666667 170.666667-76.565333 170.666667-170.666667 170.666667z m0-277.333334c-58.816 0-106.666667 47.850667-106.666667 106.666667s47.850667 106.666667 106.666667 106.666667 106.666667-47.850667 106.666667-106.666667S570.816 405.333333 512 405.333333z"/></svg>
+          </template>
+        </NButton>
       </NSpace>
     </div>
 
@@ -295,7 +317,7 @@ const checkedRowKeys = ref([])
       <NDataTable
         remote
         :loading="loading"
-        :columns="columns"
+        :columns="visibleColumns"
         :data="records"
         :row-key="(row) => `${row.site || ''}|${row.sku || ''}`"
         v-model:checked-row-keys="checkedRowKeys"
@@ -314,6 +336,49 @@ const checkedRowKeys = ref([])
       />
     </NCard>
     </div>
+
+    <!-- ===== 列配置抽屉 ===== -->
+    <NDrawer v-model:show="showDrawer" :width="480" placement="right">
+      <NDrawerContent title="列设置" closable>
+        <div class="col-config-body">
+          <div class="col-config-left">
+            <NSpace vertical size="small">
+              <NCheckbox :checked="isAllChecked" @update:checked="toggleAll">全选</NCheckbox>
+              <NCheckbox
+                v-for="c in leftCols"
+                :key="c.key"
+                :checked="c.checked"
+                :disabled="c.disabled"
+                @update:checked="toggleColumn(c.key)"
+              >{{ c.title }}</NCheckbox>
+            </NSpace>
+          </div>
+          <div class="col-config-right">
+            <div class="col-config-right-title">已选字段（拖拽排序）</div>
+            <div
+              v-for="(c, idx) in selCols"
+              :key="c.key"
+              class="col-config-item"
+              :class="{ 'col-config-item-fixed': c.fixed }"
+              :draggable="!c.fixed"
+              @dragstart="onDragStart(idx)"
+              @dragover="onDragOver"
+              @drop="onDrop(idx)"
+              @dragend="onDragEnd"
+            >
+              <span class="col-config-drag" :style="{ visibility: c.fixed ? 'hidden' : 'visible' }">⠿</span>
+              <span>{{ c.title }}</span>
+            </div>
+          </div>
+        </div>
+        <template #footer>
+          <NSpace justify="end">
+            <NButton @click="showDrawer = false">取消</NButton>
+            <NButton type="primary" @click="applyColConfig('daily-price-tracking', message)">应用</NButton>
+          </NSpace>
+        </template>
+      </NDrawerContent>
+    </NDrawer>
   </div>
 </template>
 
@@ -398,5 +463,57 @@ const checkedRowKeys = ref([])
   font-weight: 700;
   color: #1a1a2e;
   letter-spacing: -0.01em;
+}
+
+/* ===== 列配置抽屉 ===== */
+.col-config-body {
+  display: flex;
+  gap: 16px;
+  min-height: 300px;
+}
+.col-config-left {
+  width: 160px;
+  flex-shrink: 0;
+  padding: 8px;
+  border-right: 1px solid #eee;
+  max-height: 400px;
+  overflow-y: auto;
+}
+.col-config-right {
+  flex: 1;
+  padding: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+.col-config-right-title {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 8px;
+}
+.col-config-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  background: #fafafa;
+  border-radius: 4px;
+  cursor: grab;
+  font-size: 13px;
+  border: 1px solid #eee;
+  transition: background 0.15s;
+}
+.col-config-item:hover {
+  background: #e6f4ff;
+}
+.col-config-item-fixed {
+  background: #f5f5f5;
+  color: #999;
+  cursor: default;
+}
+.col-config-drag {
+  color: #bbb;
+  font-size: 14px;
+  user-select: none;
 }
 </style>
