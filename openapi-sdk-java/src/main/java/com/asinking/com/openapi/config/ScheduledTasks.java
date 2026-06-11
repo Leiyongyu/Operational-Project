@@ -112,7 +112,7 @@ public class ScheduledTasks {
         LOG.info("==== 谷仓商品同步 开始 ====");
         try {
             long t = System.currentTimeMillis();
-            Map<String, Integer> r = goodcangProductService.syncFromApi();
+            Map<String, Object> r = goodcangProductService.syncFromApi();
             LOG.info("[谷仓商品] 共{}条 新增{} 更新{} 耗时{}s", r.get("total"), r.get("inserted"), r.get("updated"), (System.currentTimeMillis() - t) / 1000);
         } catch (Exception e) {
             LOG.error("[谷仓商品] 失败", e);

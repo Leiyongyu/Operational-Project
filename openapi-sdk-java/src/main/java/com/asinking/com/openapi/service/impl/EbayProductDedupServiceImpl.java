@@ -222,14 +222,18 @@ public class EbayProductDedupServiceImpl implements EbayProductDedupService {
                     Row row = sheet.getRow(r); if (row == null) continue;
                     String fullSku = df.formatCellValue(row.getCell(colSku)).trim();
                     String rateStr = df.formatCellValue(row.getCell(colRate)).trim();
-                    if (fullSku.isEmpty() || rateStr.isEmpty()) { parseSkipped++; continue; }
+                    if (fullSku.isEmpty() || rateStr.isEmpty()) {
+                        Map<String,Object> d=new LinkedHashMap<>(); d.put("row",r+1); d.put("sheet",sheetName); d.put("sku",fullSku); d.put("rate",rateStr); d.put("reason","SKU或利润率为空"); skipDetails.add(d); parseSkipped++; continue;
+                    }
                     if (rateStr.endsWith("%")) {
                         try { rateStr = new java.math.BigDecimal(rateStr.replace("%","").trim()).divide(new java.math.BigDecimal("100"),6,java.math.RoundingMode.HALF_UP).toString(); } catch(Exception ignored){}
                     }
                     String mid = InventoryUtils.extractMiddleCodeForInventory(fullSku);
                     if (mid.isEmpty()) mid = fullSku;
                     try { allRates.computeIfAbsent(mid, k->new LinkedHashMap<>()).put(site, new java.math.BigDecimal(rateStr)); totalRows++; }
-                    catch (Exception ignored) { parseSkipped++; }
+                    catch (Exception ignored) {
+                        Map<String,Object> d=new LinkedHashMap<>(); d.put("row",r+1); d.put("sheet",sheetName); d.put("mid",mid); d.put("rate",rateStr); d.put("reason","利润率数值格式异常"); skipDetails.add(d); parseSkipped++;
+                    }
                 }
             }
         } catch (Exception e) { throw new RuntimeException("解析Excel失败: " + e.getMessage()); }
@@ -282,13 +286,17 @@ public class EbayProductDedupServiceImpl implements EbayProductDedupService {
                 Row row = sheet.getRow(r); if (row == null) continue;
                 String fullSku = df.formatCellValue(row.getCell(colSku)).trim();
                 String rateStr = df.formatCellValue(row.getCell(colRate)).trim();
-                if (fullSku.isEmpty() || rateStr.isEmpty()) { parseSkipped++; continue; }
+                if (fullSku.isEmpty() || rateStr.isEmpty()) {
+                    Map<String,Object> d=new LinkedHashMap<>(); d.put("row",r+1); d.put("sku",fullSku); d.put("rateStr",rateStr); d.put("reason","SKU或退货率为空"); skipDetails.add(d); parseSkipped++; continue;
+                }
                 if (rateStr.endsWith("%")) {
                     try { rateStr = new java.math.BigDecimal(rateStr.replace("%","").trim()).divide(new java.math.BigDecimal("100"),6,java.math.RoundingMode.HALF_UP).toString(); } catch(Exception ignored){}
                 }
                 String mid = InventoryUtils.extractMiddleCodeForInventory(fullSku);
                 if (mid.isEmpty()) mid = fullSku;
-                try { rateMap.putIfAbsent(mid, new java.math.BigDecimal(rateStr)); } catch (Exception ignored) { parseSkipped++; }
+                try { rateMap.putIfAbsent(mid, new java.math.BigDecimal(rateStr)); } catch (Exception ignored) {
+                    Map<String,Object> d=new LinkedHashMap<>(); d.put("row",r+1); d.put("mid",mid); d.put("rateStr",rateStr); d.put("reason","退货率格式异常"); skipDetails.add(d); parseSkipped++;
+                }
             }
         } catch (Exception e) { throw new RuntimeException("解析Excel失败: " + e.getMessage()); }
         int updated = 0, skipped = 0;
@@ -302,7 +310,7 @@ public class EbayProductDedupServiceImpl implements EbayProductDedupService {
             EbayProductDedupEntity ent = dedupByMid.get(e.getKey());
             if (ent != null) { ent.setReturnRate(e.getValue()); mapper.updateById(ent); updated++; }
             else {
-                Map<String,Object> d=new LinkedHashMap<>(); d.put("middleCode",e.getKey()); d.put("rate",e.getValue()); d.put("reason","在ebay_product_dedup中未匹配到"); skipDetails.add(d); skipped++;
+                Map<String,Object> d=new LinkedHashMap<>(); d.put("middleCode",e.getKey()); d.put("rate",e.getValue()); d.put("reason","中间码在ebay_product_dedup中未匹配到"); skipDetails.add(d); skipped++;
             }
         }
         Map<String, Object> result = new LinkedHashMap<>();

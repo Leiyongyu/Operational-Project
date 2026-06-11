@@ -177,6 +177,7 @@ public class DailyPriceTrackingServiceImpl implements DailyPriceTrackingService 
         // ==== 2. 基准 (baseSku → 站点列表 + 产品名 + OE) from ebay_product_dedup（已去重） ====
         Map<String, String> skuProductNameMap = new LinkedHashMap<>();
         Map<String, Set<String>> skuSitesMap = new LinkedHashMap<>(); // baseSku → Set<siteLabel>
+        Map<String, java.math.BigDecimal> dedupReturnRateMap = new LinkedHashMap<>(); // "baseSku|siteLabel" → returnRate
         for (EbayProductDedupEntity dedup : dedupService.listAll()) {
             String baseSku = dedup.getSku();
             String siteLabel = dedup.getSite();
@@ -185,6 +186,9 @@ public class DailyPriceTrackingServiceImpl implements DailyPriceTrackingService 
                 skuProductNameMap.put(baseSku, dedup.getProductName().trim());
             }
             skuSitesMap.computeIfAbsent(baseSku, k -> new LinkedHashSet<>()).add(siteLabel);
+            if (dedup.getReturnRate() != null) {
+                dedupReturnRateMap.put(baseSku + "|" + siteLabel, dedup.getReturnRate());
+            }
         }
 
         // ==== 3. 海外可售库存 (仅 type=3 海外仓) ====
@@ -359,7 +363,7 @@ public class DailyPriceTrackingServiceImpl implements DailyPriceTrackingService 
                 item.setTrackingPrice(null);
                 item.setTrackingProfitMargin(null);
                 item.setFloorPrice(null);
-                item.setReturnRate(null);
+                item.setReturnRate(dedupReturnRateMap.get(baseSku + "|" + siteLabel));
                 // OE 号：从去重表获取（Step 11 批量填充）
 
                 // eBay 售前/售后链接（从链接模板表取，{oe} 替换为实际 OE 号）

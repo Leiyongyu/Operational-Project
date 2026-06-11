@@ -11,6 +11,7 @@ import com.asinking.com.openapi.service.LingxingPurchaseOrderService;
 import com.asinking.com.openapi.service.LingxingWarehouseStatementService;
 import com.asinking.com.openapi.service.LingxingPurchasePlanQueryService;
 import com.asinking.com.openapi.service.LingxingEbayService;
+import com.asinking.com.openapi.service.GoodcangProductService;
 import com.asinking.com.openapi.service.GoodcangSyncService;
 import com.asinking.com.openapi.service.InventoryOverviewService;
 import com.asinking.com.openapi.service.OperationLogService;
@@ -39,6 +40,7 @@ public class SyncController {
     private final LingxingPurchasePlanQueryService purchasePlanQueryService;
     private final LingxingEbayService ebayService;
     private final GoodcangSyncService goodcangSyncService;
+    private final GoodcangProductService goodcangProductService;
     private final InventoryOverviewService overviewService;
     private final OperationLogService logService;
     private final HttpServletRequest request;
@@ -51,6 +53,7 @@ public class SyncController {
                           LingxingPurchasePlanQueryService purchasePlanQueryService,
                           LingxingEbayService ebayService,
                           GoodcangSyncService goodcangSyncService,
+                          GoodcangProductService goodcangProductService,
                           InventoryOverviewService overviewService,
                           OperationLogService logService,
                           JwtTokenService jwtTokenService,
@@ -62,6 +65,7 @@ public class SyncController {
         this.purchasePlanQueryService = purchasePlanQueryService;
         this.ebayService = ebayService;
         this.goodcangSyncService = goodcangSyncService;
+        this.goodcangProductService = goodcangProductService;
         this.overviewService = overviewService;
         this.logService = logService;
         this.jwtTokenService = jwtTokenService;
@@ -138,6 +142,13 @@ public class SyncController {
         }));
 
         // 采购计划
+        // 谷仓商品信息同步
+        result.put("goodcangProducts", runStep("同步外服", "谷仓-商品信息", apiPath, operator, ip, () -> {
+            long t = System.currentTimeMillis();
+            var r = goodcangProductService.syncFromApi();
+            return map("total", intValObj(r, "total"), "inserted", intValObj(r, "inserted"), "updated", intValObj(r, "updated"), "skipped", intValObj(r, "skipped"), "elapsed", ms(t));
+        }));
+
         result.put("purchasePlan", runStep("同步外服", "领星-采购计划", apiPath, operator, ip, () -> {
             long t = System.currentTimeMillis();
             var r = purchasePlanQueryService.sync(now.minusDays(90).toString(), now.toString());
@@ -191,6 +202,8 @@ public class SyncController {
 
     @FunctionalInterface
     private interface StepRunner { Map<String, Object> run() throws Exception; }
+
+    private int intValObj(Map<String, Object> m, String key) { return intVal(m, key); }
 
     private int intVal(Map<String, Object> m, String key) {
         Object v = m.get(key);

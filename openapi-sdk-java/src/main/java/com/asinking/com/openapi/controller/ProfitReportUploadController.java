@@ -153,7 +153,7 @@ public class ProfitReportUploadController {
         if (v == null || v.isEmpty()) return BigDecimal.ZERO;
         try {
             String s = v.replace(",", "").replace("%", "");
-            return new BigDecimal(s).divide(BigDecimal.valueOf(100), 6, BigDecimal.ROUND_HALF_UP);
+            return new BigDecimal(s).divide(BigDecimal.valueOf(100), 6, java.math.RoundingMode.HALF_UP);
         } catch (Exception e) { return BigDecimal.ZERO; }
     }
 }

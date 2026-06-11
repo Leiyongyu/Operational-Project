@@ -145,14 +145,12 @@ const importExportOptions = [
   { label: '导出 Excel', key: 'exportExcel' },
   { label: '导入最低价', key: 'importPrice' },
   { label: '导入商品单价', key: 'uploadPrice' },
-  { label: '同步谷仓商品', key: 'syncGoodcang' },
 ]
 
 function handleDropdownSelect(key) {
   if (key === 'exportExcel') handleExport()
   else if (key === 'importPrice') handleImportPrice()
   else if (key === 'uploadPrice') handleUploadPrice()
-  else if (key === 'syncGoodcang') handleSyncGoodcangProducts()
 }
 
 async function handleUploadPrice() {
@@ -177,20 +175,6 @@ async function handleUploadPrice() {
     }
   }
   input.click()
-}
-
-async function handleSyncGoodcangProducts() {
-  importExportLoading.value = true
-  try {
-    const token = JSON.parse(localStorage.getItem('inventory-auth-session') || '{}').token || ''
-    const resp = await fetch('/api/goodcang/sync-product', { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
-    const data = await resp.json()
-    message.success(`同步完成：共${data.total}条，新增${data.inserted}，更新${data.updated}`)
-  } catch (e) {
-    message.error('同步失败')
-  } finally {
-    importExportLoading.value = false
-  }
 }
 
 function handleExportGoodcangProducts() {
@@ -281,7 +265,7 @@ const columns = [
   { title: '底线价', key: 'floorPrice', width: 110, align: 'center',
     render: (row) => row.floorPrice ?? '' },
   { title: '退货率', key: 'returnRate', width: 110, align: 'center',
-    render: (row) => row.returnRate != null ? row.returnRate + '%' : '' },
+    render: (row) => row.returnRate != null ? (Number(row.returnRate) * 100).toFixed(1) + '%' : '' },
   { title: '近3天销量', key: 'last3DaysSales', width: 130, align: 'center',
     render: (row) => row.last3DaysSales ?? '' },
   { title: '近7天销量', key: 'last7DaysSales', width: 130, align: 'center',
