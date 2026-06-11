@@ -3,7 +3,6 @@ package com.asinking.com.openapi.controller;
 import com.asinking.com.openapi.common.response.PageResult;
 import com.asinking.com.openapi.common.response.Result;
 import com.asinking.com.openapi.dto.response.InventoryOverviewItem;
-import com.asinking.com.openapi.dto.response.WarehouseOptionItem;
 import com.asinking.com.openapi.interceptor.JwtAuthInterceptor;
 import com.asinking.com.openapi.service.InventoryOverviewService;
 import org.apache.poi.ss.usermodel.*;
@@ -39,20 +38,10 @@ public class InventoryOverviewController {
     public Result<PageResult<InventoryOverviewItem>> overview(
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "100") long size,
-            @RequestParam(required = false) String sku,
-            @RequestParam(required = false) String warehouse,
             HttpServletRequest request) {
         String userId = String.valueOf(request.getAttribute(JwtAuthInterceptor.ATTR_USER_ID));
         String role = String.valueOf(request.getAttribute(JwtAuthInterceptor.ATTR_ROLE));
-        return Result.ok(overviewService.pageOverview(page, size, sku, warehouse, userId, role));
-    }
-
-    /**
-     * 获取库存同步配置的仓库下拉选项。
-     */
-    @GetMapping("/warehouses")
-    public Result<List<WarehouseOptionItem>> warehouses() {
-        return Result.ok(overviewService.getWarehouseOptions());
+        return Result.ok(overviewService.pageOverview(page, size, null, null, userId, role));
     }
 
     /** 仅从本地DB重算快照，不拉取外部接口 */

@@ -3,7 +3,6 @@ package com.asinking.com.openapi.service.impl;
 import com.asinking.com.openapi.common.response.PageResult;
 import com.asinking.com.openapi.config.LingxingProperties;
 import com.asinking.com.openapi.dto.response.InventoryOverviewItem;
-import com.asinking.com.openapi.dto.response.WarehouseOptionItem;
 import com.asinking.com.openapi.entity.*;
 import com.asinking.com.openapi.mapper.mp.*;
 import com.asinking.com.openapi.service.*;
@@ -123,16 +122,6 @@ public class InventoryOverviewServiceImpl implements InventoryOverviewService {
             if (fb != null && !fb.isEmpty() && !matchesUserBrand(item.getSku(), fb)) return false;
             return true;
         }).collect(Collectors.toList());
-    }
-
-    @Override
-    public List<WarehouseOptionItem> getWarehouseOptions() {
-        List<Integer> wids = parseInventoryWids();
-        if (wids.isEmpty()) return Collections.emptyList();
-        Map<String, List<Integer>> g = new LinkedHashMap<>();
-        for (WarehouseEntity wh : warehouseService.lambdaQuery().in(WarehouseEntity::getWid, wids).list())
-            g.computeIfAbsent(toWarehouseLabel(wh), k -> new ArrayList<>()).add(wh.getWid());
-        return g.entrySet().stream().map(e -> new WarehouseOptionItem(e.getKey(), e.getValue().stream().map(String::valueOf).collect(Collectors.joining(",")))).collect(Collectors.toList());
     }
 
     // ====================================================================

@@ -1,17 +1,16 @@
 <script setup>
 import { h, onMounted, ref } from 'vue'
 import {
-  NButton, NCard, NCheckbox, NDataTable, NDropdown, NForm, NFormItem, NInput, NSelect, NSpace, NTag, useMessage,
+  NButton, NCard, NDataTable, NDropdown, NInput, NSpace, NTag, useMessage,
 } from 'naive-ui'
-import { fetchDailyPriceTracking, exportDailyPriceTracking, importLowestPrice, saveOe, saveRemark } from '@/api/dailyPriceTracking'
-import { fetchInventoryOverviewWarehouses } from '@/api/inventoryOverview'
+import { fetchDailyPriceTracking, refreshDailyPriceTrackingSnapshot, exportDailyPriceTracking, importLowestPrice, saveOe, saveRemark } from '@/api/dailyPriceTracking'
 import { useDataTable } from '@/composables/useDataTable'
 
 const message = useMessage()
 
-const { loading, records, total, query, filters, loadData, handleSearch, handleReset } = useDataTable(
+const { loading, records, total, query, loadData } = useDataTable(
   fetchDailyPriceTracking,
-  { sku: '', brand: '', operator: '' },
+  {},
   { pageSize: 100, loadOnMount: false },
 )
 
@@ -19,71 +18,37 @@ const { loading, records, total, query, filters, loadData, handleSearch, handleR
 const remarkInputs = {}  // key: "site|sku" → 当前输入值
 const oeInputs = {}       // key: "site|sku" → 当前 OE 输入值
 
-const tableMaxHeight = 450
-
-// ===== 仓库多选下拉（和补货页同一个接口） =====
-const warehouseLoading = ref(false)
-const warehouseOptions = ref([])
-const siteFilter = ref([])
-
-async function loadWarehouseOptions() {
-  warehouseLoading.value = true
-  try {
-    const list = await fetchInventoryOverviewWarehouses()
-    warehouseOptions.value = Array.isArray(list)
-      ? list.map((item) => {
-          const label = item?.label ? String(item.label) : ''
-          if (!label) return null
-          return { label, value: label }
-        }).filter(Boolean)
-      : []
-    siteFilter.value = []
-  } catch (error) {
-    message.error(error instanceof Error ? error.message : '加载仓库下拉失败')
-    warehouseOptions.value = []
-    siteFilter.value = []
-  } finally {
-    warehouseLoading.value = false
-  }
-}
-
-// 包装 loadData：将仓库多选转为逗号分隔字符串
-async function doLoadData() {
-  const selected = Array.isArray(siteFilter.value) ? siteFilter.value : []
-  const optionCount = warehouseOptions.value.length
-  // 全部选中或不选 → 不传 site 参数，查全部
-  filters.site = selected.length > 0 && selected.length < optionCount ? selected.join(',') : ''
-  loadData()
-}
+const tableMaxHeight = 750
 
 onMounted(() => {
-  loadWarehouseOptions().then(() => doLoadData())
+  loadData()
 })
 
-function onSearch() {
-  query.page = 1
-  doLoadData()
-}
-
-function onReset() {
-  filters.sku = ''
-  filters.operator = ''
-  siteFilter.value = []
-  query.page = 1
-  filters.site = ''
-  loadData()
+async function handleRefresh() {
+  loading.value = true
+  try {
+    await refreshDailyPriceTrackingSnapshot()
+    await loadData()
+    message.success('刷新完成')
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '刷新失败')
+  } finally {
+    loading.value = false
+  }
 }
 
 const importExportLoading = ref(false)
 
 const importExportOptions = [
+  { label: '导出 Excel', key: 'exportExcel' },
   { label: '导入最低价', key: 'importPrice' },
   { label: '导入商品单价', key: 'uploadPrice' },
   { label: '同步谷仓商品', key: 'syncGoodcang' },
 ]
 
 function handleDropdownSelect(key) {
-  if (key === 'importPrice') handleImportPrice()
+  if (key === 'exportExcel') handleExport()
+  else if (key === 'importPrice') handleImportPrice()
   else if (key === 'uploadPrice') handleUploadPrice()
   else if (key === 'syncGoodcang') handleSyncGoodcangProducts()
 }
@@ -143,7 +108,7 @@ async function handleImportPrice() {
     try {
       const res = await importLowestPrice(file)
       message.success(`导入完成: 共${res.total}条, 新增${res.inserted}, 更新${res.updated}, 跳过${res.skipped}`)
-      doLoadData()
+      loadData()
     } catch (err) {
       message.error(err instanceof Error ? err.message : '导入失败')
     } finally {
@@ -155,31 +120,14 @@ async function handleImportPrice() {
 
 async function handleExport() { importExportLoading.value = true
   try {
-    // 有选中行则只导出选中，否则全量导出
     const selected = checkedRowKeys.value.length > 0 ? checkedRowKeys.value : null
     await exportDailyPriceTracking({
-      site: filters.site || undefined,
-      sku: filters.sku.trim() || undefined,
-      brand: filters.brand.trim() || undefined,
-      operator: filters.operator.trim() || undefined,
       ids: selected ? selected.join(',') : undefined,
     })
     message.success(selected ? `已导出 ${selected.length} 条` : '导出成功')
   } catch (e) {
     importExportLoading.value = false; message.error(e.message || "导出失败")
   }
-}
-
-function renderWarehouseOption({ node, option, selected }) {
-  return h('div', {
-    style: { display: 'flex', alignItems: 'center', gap: '8px', width: '100%' },
-    onClick: node?.props?.onClick,
-    onMouseenter: node?.props?.onMouseenter,
-    onMousemove: node?.props?.onMousemove,
-  }, [
-    h(NCheckbox, { checked: selected, style: { pointerEvents: 'none' } }),
-    h('span', { style: { flex: 1, minWidth: 0 } }, option.label || option.value),
-  ])
 }
 
 function renderLink(url) {
@@ -331,45 +279,12 @@ const checkedRowKeys = ref([])
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
       <h2 class="users-title" style="margin:0">每日跟价</h2>
       <NSpace>
-        <NButton @click="doLoadData" :loading="loading">刷新</NButton>
-        <NButton type="primary" @click="handleExport">导出 Excel</NButton>
+        <NButton @click="handleRefresh" :loading="loading">刷新</NButton>
         <NDropdown trigger="click" :options="importExportOptions" @select="handleDropdownSelect">
           <NButton type="primary" :loading="importExportLoading">导入导出</NButton>
         </NDropdown>
       </NSpace>
     </div>
-
-    <NCard size="small" class="dashboard-card" style="margin-bottom:6px">
-      <NForm inline :model="filters" @keyup.enter="onSearch">
-        <NFormItem label="站点">
-          <NSelect
-            v-model:value="siteFilter"
-            multiple
-            filterable
-            clearable
-            placeholder="选择站点"
-            :options="warehouseOptions"
-            :loading="warehouseLoading"
-            :render-option="renderWarehouseOption"
-            :max-tag-count="1"
-            style="width: 180px"
-            @update:value="onSearch"
-          />
-        </NFormItem>
-        <NFormItem label="SKU">
-          <NInput v-model:value="filters.sku" clearable placeholder="SKU模糊搜索" style="width:180px" />
-        </NFormItem>
-        <NFormItem label="操作员">
-          <NInput v-model:value="filters.operator" clearable placeholder="操作员" style="width:120px" />
-        </NFormItem>
-        <NFormItem>
-          <NSpace size="small">
-            <NButton type="primary" secondary @click="onSearch" :loading="loading">查询</NButton>
-            <NButton @click="onReset">重置</NButton>
-          </NSpace>
-        </NFormItem>
-      </NForm>
-    </NCard>
 
     <div class="table-card-wrap">
     <NCard size="small">
@@ -392,8 +307,8 @@ const checkedRowKeys = ref([])
           itemCount: total,
           showSizePicker: true,
           pageSizes: [10, 20, 50, 100],
-          onUpdatePage: (p) => { query.page = p; doLoadData() },
-          onUpdatePageSize: (s) => { query.size = s; query.page = 1; doLoadData() },
+          onUpdatePage: (p) => { query.page = p; loadData() },
+          onUpdatePageSize: (s) => { query.size = s; query.page = 1; loadData() },
         }"
         striped
       />

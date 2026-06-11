@@ -490,4 +490,5 @@ public class DailyPriceTrackingServiceImpl implements DailyPriceTrackingService 
         i.setFrontpageSoldUrl(e.getFrontpageSoldUrl()); i.setBrand(e.getBrand()); i.setOperator(e.getOperator());
         i.setRemark(e.getRemark()); i.setOeNumber(e.getOeNumber()); return i;
     }
+
 }

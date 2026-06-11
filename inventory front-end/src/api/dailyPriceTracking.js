@@ -12,7 +12,7 @@ export function saveRemark(site, sku, remark) {
 
 /** 刷新每日跟价快照（全量重算） */
 export function refreshDailyPriceTrackingSnapshot() {
-  return apiPost('/api/daily-price-tracking/refresh-snapshot')
+  return apiPost('/api/daily-price-tracking/refresh-table')
 }
 
 /** 保存或更新 OE 号 */

@@ -1,21 +1,15 @@
 <script setup>
-import { computed, h, onMounted, reactive, ref } from 'vue'
+import { computed, h, onMounted, ref } from 'vue'
 import {
   NButton,
   NCard,
-  NCheckbox,
   NDataTable,
   NDropdown,
-  NForm,
-  NFormItem,
-  NInput,
-  NSelect,
   NSpace,
   NTag,
-  NIcon,
   useMessage,
 } from 'naive-ui'
-import { fetchInventoryOverview, fetchInventoryOverviewWarehouses, refreshSnapshot } from '@/api/inventoryOverview'
+import { fetchInventoryOverview, refreshSnapshot } from '@/api/inventoryOverview'
 import { syncAll } from '@/api/sync'
 import { uploadEbaySales } from '@/api/ebaySales'
 import { useAuthStore } from '@/stores/auth'
@@ -27,17 +21,10 @@ const isAdmin = computed(() => authStore.isAdmin)
 const loading = ref(false)
 const syncing = ref(false)
 const uploading = ref(false)
-const recalculating = ref(false)
 const importExportLoading = ref(false)
-const warehouseLoading = ref(false)
 let loadSeq = 0
 
 const replenishRows = ref([])
-const warehouseOptions = ref([])
-const filters = reactive({
-  warehouseNames: [],
-  sku: '',
-})
 
 function formatDateTime(value) {
   const date = value instanceof Date ? value : new Date(value)
@@ -49,23 +36,23 @@ function formatDateTime(value) {
 
 const updatedAt = ref('')
 
-// KPI 汇总
-const kpiCards = computed(() => {
-  const rows = replenishRows.value
-  if (!rows.length) return []
-  const totalSku = rows.length
-  const totalInventory = rows.reduce((sum, r) => sum + (Number(r.totalInventory) || 0), 0)
-  const totalOverseasSellable = rows.reduce((sum, r) => sum + (Number(r.overseasSellable) || 0), 0)
-  const totalSales30 = rows.reduce((sum, r) => sum + (Number(r.last30DaysSales) || 0), 0)
-  return [
-    { label: 'SKU 总数', value: totalSku.toLocaleString(), color: '#1677ff', bg: '#e6f4ff' },
-    { label: '海外可售库存', value: totalOverseasSellable.toLocaleString(), color: '#52c41a', bg: '#f6ffed' },
-    { label: '总库存量', value: totalInventory.toLocaleString(), color: '#722ed1', bg: '#f9f0ff' },
-    { label: '近30天总销量', value: totalSales30.toLocaleString(), color: '#fa8c16', bg: '#fff7e6' },
-  ]
-})
-
-const filteredRows = computed(() => replenishRows.value)
+//// KPI 汇总
+//const kpiCards = computed(() => {
+//  const rows = replenishRows.value
+//  if (!rows.length) return []
+//  const totalSku = rows.length
+//  const totalInventory = rows.reduce((sum, r) => sum + (Number(r.totalInventory) || 0), 0)
+//  const totalOverseasSellable = rows.reduce((sum, r) => sum + (Number(r.overseasSellable) || 0), 0)
+//  const totalSales30 = rows.reduce((sum, r) => sum + (Number(r.last30DaysSales) || 0), 0)
+//  return [
+//    { label: 'SKU 总数', value: totalSku.toLocaleString(), color: '#1677ff', bg: '#e6f4ff' },
+//    { label: '海外可售库存', value: totalOverseasSellable.toLocaleString(), color: '#52c41a', bg: '#f6ffed' },
+//    { label: '总库存量', value: totalInventory.toLocaleString(), color: '#722ed1', bg: '#f9f0ff' },
+//    { label: '近30天总销量', value: totalSales30.toLocaleString(), color: '#fa8c16', bg: '#fff7e6' },
+//  ]
+//})
+//
+const filteredRows = computed(() => replenishRows.value) // KPI removed
 
 function renderRatioTag(value) {
   if (value === undefined || value === null || value === '') return ''
@@ -138,41 +125,14 @@ const replenishColumns = [
 ].map((c) => ({ ...c, resizable: true, minWidth: 70 }))
 
 const replenishScrollX = replenishColumns.reduce((s, c) => s + (Number(c?.width) || 100), 0)
-const replenishMaxHeight = 400
-
-async function loadWarehouseOptions() {
-  warehouseLoading.value = true
-  try {
-    const list = await fetchInventoryOverviewWarehouses()
-    warehouseOptions.value = Array.isArray(list)
-      ? list.map((item) => {
-          const label = item?.label ? String(item.label) : ''
-          if (!label) return null
-          return { label, value: label }
-        }).filter(Boolean)
-      : []
-    filters.warehouseNames = []
-  } catch (error) {
-    message.error(error instanceof Error ? error.message : '加载仓库下拉失败')
-    warehouseOptions.value = []
-    filters.warehouseNames = []
-  } finally {
-    warehouseLoading.value = false
-  }
-}
+const replenishMaxHeight = 750
 
 async function loadInventoryOverview() {
   loading.value = true
   const seq = ++loadSeq
-  const selected = Array.isArray(filters.warehouseNames) ? filters.warehouseNames : []
-  const optionCount = warehouseOptions.value.length
-  const warehouseParam = selected.length > 0 && selected.length < optionCount ? selected.join(',') : undefined
 
   try {
-    const list = await fetchInventoryOverview({
-      sku: filters.sku.trim() || undefined,
-      warehouse: warehouseParam,
-    })
+    const list = await fetchInventoryOverview()
     if (seq !== loadSeq) return
     replenishRows.value = list?.records || (Array.isArray(list) ? list : [])
     updatedAt.value = formatDateTime(new Date())
@@ -185,20 +145,19 @@ async function loadInventoryOverview() {
 }
 
 onMounted(() => {
-  loadWarehouseOptions()
   loadInventoryOverview()
 })
 
 async function handleRecalc() {
-  recalculating.value = true
+  loading.value = true
   try {
     await refreshSnapshot()
     await loadInventoryOverview()
-    message.success('重算完成')
+    message.success('刷新完成')
   } catch (e) {
-    message.error(e instanceof Error ? e.message : '重算失败')
+    message.error(e instanceof Error ? e.message : '刷新失败')
   } finally {
-    recalculating.value = false
+    loading.value = false
   }
 }
 
@@ -283,47 +242,30 @@ function handleDropdownSelect(key) {
   else if (key === 'uploadReturnRate') handleUploadReturnRate()
 }
 
-function handleReset() {
-  filters.warehouseNames = []
-  filters.sku = ''
-  loadInventoryOverview()
-}
-
-function renderWarehouseOption({ node, option, selected }) {
-  return h('div', {
-    style: { display: 'flex', alignItems: 'center', gap: '8px', width: '100%' },
-    onClick: node?.props?.onClick,
-    onMouseenter: node?.props?.onMouseenter,
-    onMousemove: node?.props?.onMousemove,
-  }, [
-    h(NCheckbox, { checked: selected, style: { pointerEvents: 'none' } }),
-    h('span', { style: { flex: 1, minWidth: 0 } }, option.label || option.value),
-  ])
-}
 </script>
 
 <template>
   <div class="dashboard-page">
-    <!-- ===== KPI 数据卡片 ===== -->
-    <div class="kpi-grid">
-      <div
-        v-for="(card, idx) in kpiCards"
-        :key="card.label"
-        class="kpi-card"
-        :style="{ animationDelay: idx * 0.1 + 's' }"
-      >
-        <div class="kpi-icon" :style="{ background: card.bg, color: card.color }">
-          <svg v-if="idx === 0" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16M4 20V4m0 16 4-4v4m4 0V10m0 10 4-8v8m4 0V6m0 14 4-12v12"/></svg>
-          <svg v-else-if="idx === 1" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-          <svg v-else-if="idx === 2" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-          <svg v-else viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-        </div>
-        <div class="kpi-info">
-          <span class="kpi-value animate-count">{{ card.value }}</span>
-          <span class="kpi-label">{{ card.label }}</span>
-        </div>
-      </div>
-    </div>
+<!--    ===== KPI 数据卡片 ===== -->
+<!--    <div class="kpi-grid">-->
+<!--      <div-->
+<!--        v-for="(card, idx) in kpiCards"-->
+<!--        :key="card.label"-->
+<!--        class="kpi-card"-->
+<!--        :style="{ animationDelay: idx * 0.1 + 's' }"-->
+<!--      >-->
+<!--        <div class="kpi-icon" :style="{ background: card.bg, color: card.color }">-->
+<!--          <svg v-if="idx === 0" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16M4 20V4m0 16 4-4v4m4 0V10m0 10 4-8v8m4 0V6m0 14 4-12v12"/></svg>-->
+<!--          <svg v-else-if="idx === 1" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>-->
+<!--          <svg v-else-if="idx === 2" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>-->
+<!--          <svg v-else viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>-->
+<!--        </div>-->
+<!--        <div class="kpi-info">-->
+<!--          <span class="kpi-value animate-count">{{ card.value }}</span>-->
+<!--          <span class="kpi-label">{{ card.label }}</span>-->
+<!--        </div>-->
+<!--      </div>-->
+<!--    </div>-->
 
     <!-- ===== 主表格卡片 ===== -->
     <div class="table-card-wrap">
@@ -332,14 +274,11 @@ function renderWarehouseOption({ node, option, selected }) {
         <NSpace align="center" size="small">
           <NTag type="info" :bordered="false" size="small">更新 {{ updatedAt || '-' }}</NTag>
           <NTag size="small" :bordered="false" type="default">共 {{ filteredRows.length }} 条</NTag>
-          <NButton size="small" secondary :loading="loading" @click="loadInventoryOverview">
+          <NButton size="small" secondary :loading="loading" @click="handleRecalc">
             <template #icon>
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
             </template>
             刷新
-          </NButton>
-          <NButton size="small" type="info" :loading="recalculating" @click="handleRecalc">
-            重算数据
           </NButton>
           <NButton v-if="isAdmin" size="small" type="warning" :loading="syncing" @click="handleSyncAll">
             拉取最新数据
@@ -349,41 +288,6 @@ function renderWarehouseOption({ node, option, selected }) {
           </NDropdown>
         </NSpace>
       </template>
-
-      <!-- 筛选区 -->
-      <NForm inline :model="filters" class="filter-form">
-        <NFormItem label="仓库">
-          <NSelect
-            v-model:value="filters.warehouseNames"
-            multiple
-            filterable
-            clearable
-            placeholder="选择仓库"
-            :options="warehouseOptions"
-            :loading="warehouseLoading"
-            :render-option="renderWarehouseOption"
-            :max-tag-count="1"
-            style="width: 180px"
-          />
-        </NFormItem>
-        <NFormItem label="SKU">
-          <NInput
-            v-model:value="filters.sku"
-            clearable
-            placeholder="输入 SKU"
-            style="width: 220px"
-            @keyup.enter="loadInventoryOverview"
-          />
-        </NFormItem>
-        <NFormItem>
-          <NSpace size="small">
-            <NButton type="primary" secondary :loading="loading" @click="loadInventoryOverview">
-              查询
-            </NButton>
-            <NButton :disabled="loading" @click="handleReset">重置</NButton>
-          </NSpace>
-        </NFormItem>
-      </NForm>
 
       <NDataTable
         :loading="loading"
@@ -483,12 +387,6 @@ function renderWarehouseOption({ node, option, selected }) {
   flex-shrink: 0;
 }
 
-/* filter form: 不伸缩 */
-.table-card-wrap :deep(.filter-form) {
-  flex-shrink: 0;
-  margin-bottom: 0;
-}
-
 /* 表格容器：填充剩余空间 + 内部滚动 */
 .table-card-wrap :deep(.n-data-table) {
   flex: 1;
@@ -529,9 +427,6 @@ function renderWarehouseOption({ node, option, selected }) {
   border-bottom: 1px solid #f5f5f5;
   text-align: center !important;
 }
-
-.filter-form { margin-bottom: 0; }
-.filter-form :deep(.n-form-item) { margin-bottom: 0; }
 
 @media (max-width: 1200px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 640px) { .kpi-grid { grid-template-columns: 1fr; } }

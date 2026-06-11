@@ -2,8 +2,6 @@ package com.asinking.com.openapi.service;
 
 import com.asinking.com.openapi.common.response.PageResult;
 import com.asinking.com.openapi.dto.response.InventoryOverviewItem;
-import com.asinking.com.openapi.dto.response.WarehouseOptionItem;
-
 import java.util.List;
 
 /**
@@ -25,11 +23,6 @@ public interface InventoryOverviewService {
      * @param role      当前用户角色，"admin" 看全部
      */
     List<InventoryOverviewItem> filterOverview(String sku, String warehouse, String userId, String role);
-
-    /**
-     * 获取库存同步配置的仓库列表，供前端下拉选择。
-     */
-    List<WarehouseOptionItem> getWarehouseOptions();
 
     /**
      * 分页查询库存概览。
