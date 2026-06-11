@@ -129,6 +129,7 @@ onMounted(async () => {
 onUnmounted(() => { document.removeEventListener('click', onDocClick) })
 
 async function handleRefresh() {
+  if (loading.value) return
   loading.value = true
   try {
     await refreshDailyPriceTrackingSnapshot()
@@ -156,6 +157,7 @@ function handleDropdownSelect(key) {
 }
 
 async function handleUploadPrice() {
+  if (importExportLoading.value) return
   const input = document.createElement('input')
   input.type = 'file'
   input.accept = '.xlsx,.xls'
@@ -188,6 +190,7 @@ function handleExportGoodcangProducts() {
 }
 
 async function handleImportPrice() {
+  if (importExportLoading.value) return
   const input = document.createElement('input')
   input.type = 'file'
   input.accept = '.xlsx,.xls'
@@ -208,7 +211,7 @@ async function handleImportPrice() {
   input.click()
 }
 
-async function handleExport() { importExportLoading.value = true
+async function handleExport() { if (importExportLoading.value) return; importExportLoading.value = true
   try {
     const selected = checkedRowKeys.value.length > 0 ? checkedRowKeys.value : null
     await exportDailyPriceTracking({

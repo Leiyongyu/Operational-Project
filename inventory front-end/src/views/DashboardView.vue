@@ -351,6 +351,7 @@ function onDocClick() {
 }
 
 async function handleRecalc() {
+  if (loading.value) return
   loading.value = true
   try {
     await refreshSnapshot()
@@ -364,6 +365,7 @@ async function handleRecalc() {
 }
 
 async function handleSyncAll() {
+  if (syncing.value) return
   syncing.value = true
   try {
     await syncAll()
@@ -377,6 +379,7 @@ async function handleSyncAll() {
 }
 
 async function handleUploadExcel() {
+  if (importExportLoading.value) return
   const input = document.createElement('input')
   input.type = 'file'
   input.accept = '.xlsx,.xls'
@@ -406,6 +409,7 @@ const importExportOptions = [
 ]
 
 function handleUploadProfitRate() {
+  if (importExportLoading.value) return
   const input = document.createElement('input')
   input.type = 'file'; input.accept = '.xlsx,.xls'
   input.onchange = async (e) => {
@@ -425,6 +429,7 @@ function handleUploadProfitRate() {
 }
 
 function handleUploadReturnRate() {
+  if (importExportLoading.value) return
   const input = document.createElement('input')
   input.type = 'file'; input.accept = '.xlsx,.xls'
   input.onchange = async (e) => {
@@ -451,6 +456,7 @@ function handleDropdownSelect(key) {
 }
 
 async function handleExportExcel() {
+  if (importExportLoading.value) return
   importExportLoading.value = true
   try {
     const colKeys = visibleKeys.value
