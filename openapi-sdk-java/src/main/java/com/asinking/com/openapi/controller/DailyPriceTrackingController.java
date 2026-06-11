@@ -49,16 +49,19 @@ public class DailyPriceTrackingController {
         return Result.ok("ok");
     }
 
-    /** 分页查询（支持多条件筛选） */
+    /** 分页查询（支持多条件筛选，非管理员按品牌权限过滤） */
     @PostMapping("/search")
-    public Result<PageResult<DailyPriceTrackingItem>> search(@RequestBody Map<String, Object> body) {
+    public Result<PageResult<DailyPriceTrackingItem>> search(@RequestBody Map<String, Object> body,
+            jakarta.servlet.http.HttpServletRequest request) {
         long page = body.get("page") != null ? ((Number) body.get("page")).longValue() : 1;
         long size = body.get("size") != null ? ((Number) body.get("size")).longValue() : 20;
         String sortField = (String) body.get("sortField");
         String sortOrder = (String) body.get("sortOrder");
         @SuppressWarnings("unchecked")
         List<Map<String, String>> filters = (List<Map<String, String>>) body.getOrDefault("filters", Collections.emptyList());
-        return Result.ok(service.search(page, size, filters, sortField, sortOrder));
+        String userId = String.valueOf(request.getAttribute(com.asinking.com.openapi.interceptor.JwtAuthInterceptor.ATTR_USER_ID));
+        String role = String.valueOf(request.getAttribute(com.asinking.com.openapi.interceptor.JwtAuthInterceptor.ATTR_ROLE));
+        return Result.ok(service.search(page, size, filters, sortField, sortOrder, userId, role));
     }
 
     /** 搜索字段去重值 */

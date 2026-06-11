@@ -68,9 +68,9 @@ const createForm = reactive({
   account: '',
   password: '',
   role: 'user',
-  brandCode: '',
   ownerName: '',
 })
+const createOwnerBrands = ref([])  // 选中负责人时自动显示关联品牌
 
 const editForm = reactive({
   id: '',
@@ -154,41 +154,33 @@ async function openCreateModal() {
   createForm.account = ''
   createForm.password = ''
   createForm.role = 'user'
-  createForm.brandCode = ''
   createForm.ownerName = ''
+  createOwnerBrands.value = []
   showCreateModal.value = true
   if (brandCodeOptions.value.length === 0) await loadFormOptions()
+}
+async function onOwnerNameChange(val) {
+  if (!val) { createOwnerBrands.value = []; return }
+  try {
+    const brands = await fetchBrandsByOwner(val)
+    createOwnerBrands.value = brands.map(b => b.brandCode)
+  } catch { createOwnerBrands.value = [] }
 }
 
 async function submitCreate() {
   const account = createForm.account.trim()
-  const brandCode = createForm.brandCode.trim()
   const ownerName = createForm.ownerName.trim()
 
-  if (!account) {
-    message.warning('请输入账号')
-    return
-  }
-
-  if (!createForm.password) {
-    message.warning('请输入密码')
-    return
-  }
-
-  if ((brandCode && !ownerName) || (!brandCode && ownerName)) {
-    message.warning('品牌编码与负责人需要同时填写')
-    return
-  }
+  if (!account) { message.warning('请输入账号'); return }
+  if (!createForm.password) { message.warning('请输入密码'); return }
 
   try {
     await createUser({
       account,
       password: createForm.password,
       role: createForm.role,
-      brandCode: brandCode || null,
       ownerName: ownerName || null,
     })
-
     message.success('新增成功')
     showCreateModal.value = false
     query.page = 1
@@ -608,16 +600,6 @@ onActivated(() => loadUsers())
         <NFormItem label="角色">
           <NSelect v-model:value="createForm.role" :options="roleOptions" />
         </NFormItem>
-        <NFormItem label="品牌编码">
-          <NSelect
-            v-model:value="createForm.brandCode"
-            :options="brandCodeOptions"
-            filterable
-            clearable
-            tag
-            placeholder="选择或输入品牌编码"
-          />
-        </NFormItem>
         <NFormItem label="负责人">
           <NSelect
             v-model:value="createForm.ownerName"
@@ -626,7 +608,13 @@ onActivated(() => loadUsers())
             clearable
             tag
             placeholder="选择或输入负责人"
+            @update:value="onOwnerNameChange"
           />
+        </NFormItem>
+        <NFormItem v-if="createOwnerBrands.length" label="关联品牌">
+          <NSpace size="small" wrap>
+            <NTag v-for="b in createOwnerBrands" :key="b" size="small" type="success" :bordered="false">{{ b }}</NTag>
+          </NSpace>
         </NFormItem>
       </NForm>
 

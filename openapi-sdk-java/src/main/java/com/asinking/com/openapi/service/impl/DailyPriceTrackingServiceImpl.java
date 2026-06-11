@@ -45,6 +45,7 @@ public class DailyPriceTrackingServiceImpl implements DailyPriceTrackingService 
     private final EbayProductDedupService dedupService;
     private final EbayLinkTemplateService linkTemplateService;
     private final DailyPriceTrackingCacheMapper cacheMapper;
+    private final com.asinking.com.openapi.mapper.mp.UserMapper userMapper;
     public DailyPriceTrackingServiceImpl(LingxingProperties lingxingProperties,
                                          WarehouseService warehouseService,
                                          WarehouseInventoryDetailService inventoryService,
@@ -58,7 +59,8 @@ public class DailyPriceTrackingServiceImpl implements DailyPriceTrackingService 
                                          LowestPriceRecordService lowestPriceService,
                                          EbayProductDedupService dedupService,
                                          EbayLinkTemplateService linkTemplateService,
-                                         DailyPriceTrackingCacheMapper cacheMapper) {
+                                         DailyPriceTrackingCacheMapper cacheMapper,
+                                         com.asinking.com.openapi.mapper.mp.UserMapper userMapper) {
         this.lingxingProperties = lingxingProperties;
         this.warehouseService = warehouseService;
         this.inventoryService = inventoryService;
@@ -73,6 +75,7 @@ public class DailyPriceTrackingServiceImpl implements DailyPriceTrackingService 
         this.dedupService = dedupService;
         this.linkTemplateService = linkTemplateService;
         this.cacheMapper = cacheMapper;
+        this.userMapper = userMapper;
     }
 
     @Override
@@ -548,11 +551,22 @@ public class DailyPriceTrackingServiceImpl implements DailyPriceTrackingService 
     @Override
     public PageResult<DailyPriceTrackingItem> search(long page, long size,
                                                       List<Map<String, String>> filters,
-                                                      String sortField, String sortOrder) {
+                                                      String sortField, String sortOrder,
+                                                      String userId, String role) {
         Long tableCount = cacheMapper.selectCount(null);
         List<DailyPriceTrackingItem> allRows = (tableCount != null && tableCount > 0)
                 ? cacheMapper.selectList(null).stream().map(this::entityToDto).collect(Collectors.toList())
                 : computeDailyPriceTracking();
+
+        // 品牌权限过滤：非管理员只看自己负责的品牌
+        if (!"admin".equalsIgnoreCase(role != null ? role.trim() : "") && StringUtils.hasText(userId)) {
+            Set<String> userBrands = loadUserBrandCodes(userId);
+            if (!userBrands.isEmpty()) {
+                allRows = allRows.stream().filter(item ->
+                    item.getBrand() != null && userBrands.contains(item.getBrand().toUpperCase())
+                ).collect(Collectors.toList());
+            }
+        }
 
         // 多字段筛选
         if (filters != null && !filters.isEmpty()) {
@@ -684,6 +698,15 @@ public class DailyPriceTrackingServiceImpl implements DailyPriceTrackingService 
             case "estimatedReplenish": return i.getEstimatedReplenish() != null ? i.getEstimatedReplenish().doubleValue() : null;
             default: return null;
         }
+    }
+
+    private Set<String> loadUserBrandCodes(String uid) {
+        UserEntity u = userMapper.selectById(uid);
+        if (u == null || !StringUtils.hasText(u.getOwnerName())) return Collections.emptySet();
+        Set<String> s = new HashSet<>();
+        for (BrandOwnerEntity bo : brandOwnerService.lambdaQuery().eq(BrandOwnerEntity::getOwnerName, u.getOwnerName().trim()).list())
+            if (StringUtils.hasText(bo.getBrandCode())) s.add(bo.getBrandCode().trim().toUpperCase());
+        return s;
     }
 
     private String getFieldStr(DailyPriceTrackingItem i, String f) {

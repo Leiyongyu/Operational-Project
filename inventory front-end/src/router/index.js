@@ -47,7 +47,7 @@ const router = createRouter({
           path: 'brand-owners',
           name: 'brandOwners',
           component: () => import('@/views/BrandOwnerView.vue'),
-          meta: { requiresAdmin: true, title: '品牌负责人' },
+          meta: { requiresAdmin: true, title: '品牌管理' },
         },
         {
           path: 'daily-price-tracking',

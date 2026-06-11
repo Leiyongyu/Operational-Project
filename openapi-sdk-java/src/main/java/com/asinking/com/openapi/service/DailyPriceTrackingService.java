@@ -17,7 +17,8 @@ public interface DailyPriceTrackingService {
 
     PageResult<DailyPriceTrackingItem> search(long page, long size,
                                               List<Map<String, String>> filters,
-                                              String sortField, String sortOrder);
+                                              String sortField, String sortOrder,
+                                              String userId, String role);
 
     void refreshTable();
 

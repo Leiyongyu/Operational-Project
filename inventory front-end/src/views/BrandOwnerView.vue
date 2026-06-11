@@ -202,7 +202,7 @@ onMounted(() => {
 <template>
   <section class="dashboard-page">
     <div class="users-header">
-      <h2 class="users-title">品牌负责人管理</h2>
+      <h2 class="users-title">品牌管理</h2>
     </div>
 
     <!-- 搜索区 -->

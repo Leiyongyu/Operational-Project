@@ -6,7 +6,6 @@ public class UserCreateRequest {
     private String password;
     private String role;
     private String ownerName;
-    private String brandCode;
 
     public String getAccount() { return account; }
     public void setAccount(String account) { this.account = account; }
@@ -16,6 +15,4 @@ public class UserCreateRequest {
     public void setRole(String role) { this.role = role; }
     public String getOwnerName() { return ownerName; }
     public void setOwnerName(String ownerName) { this.ownerName = ownerName; }
-    public String getBrandCode() { return brandCode; }
-    public void setBrandCode(String brandCode) { this.brandCode = brandCode; }
 }

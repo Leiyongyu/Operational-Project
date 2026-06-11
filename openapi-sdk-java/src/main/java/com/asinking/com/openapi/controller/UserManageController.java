@@ -43,7 +43,7 @@ public class UserManageController {
     @PostMapping
     public Result<UserResponse> create(@RequestBody UserCreateRequest req, HttpServletRequest request) {
         String operatorUserId = String.valueOf(request.getAttribute(JwtAuthInterceptor.ATTR_USER_ID));
-        return Result.ok(userService.createUser(operatorUserId, req.getAccount(), req.getPassword(), req.getRole(), req.getOwnerName(), req.getBrandCode()));
+        return Result.ok(userService.createUser(operatorUserId, req.getAccount(), req.getPassword(), req.getRole(), req.getOwnerName()));
     }
 
     /**

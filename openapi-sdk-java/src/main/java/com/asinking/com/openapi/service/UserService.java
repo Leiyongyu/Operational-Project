@@ -19,7 +19,7 @@ public interface UserService extends IService<UserEntity> {
     void logout(String authorizationHeader);
 
     /** 创建新用户，关联品牌归属。 */
-    UserResponse createUser(String operatorUserId, String account, String password, String role, String ownerName, String brandCode);
+    UserResponse createUser(String operatorUserId, String account, String password, String role, String ownerName);
 
     /** 更新用户信息（角色、负责人、密码）。 */
     UserResponse updateUser(String operatorUserId, String id, String role, String ownerName, String password);

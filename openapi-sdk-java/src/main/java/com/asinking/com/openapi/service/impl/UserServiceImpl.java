@@ -94,7 +94,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserEntity> impleme
     /** 创建新用户，自动创建品牌归属记录（幂等）。 */
     @Override
     @Transactional
-    public UserResponse createUser(String operatorUserId, String account, String password, String role, String ownerName, String brandCode) {
+    public UserResponse createUser(String operatorUserId, String account, String password, String role, String ownerName) {
         if (!StringUtils.hasText(account)) {
             throw new BusinessException(ResultCode.BAD_REQUEST, "account 不能为空");
         }
@@ -105,28 +105,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserEntity> impleme
             throw new BusinessException(ResultCode.BAD_REQUEST, "role 不能为空");
         }
 
-        if (!StringUtils.hasText(brandCode)) {
-            throw new BusinessException(ResultCode.BAD_REQUEST, "brandCode 不能为空");
-        }
-        if (!StringUtils.hasText(ownerName)) {
-            throw new BusinessException(ResultCode.BAD_REQUEST, "ownerName 不能为空");
-        }
-
-        String trimmedBrandCode = brandCode.trim();
-        String trimmedOwnerName = ownerName.trim();
-
-        boolean brandExists = brandOwnerService.lambdaQuery()
-                .eq(BrandOwnerEntity::getBrandCode, trimmedBrandCode)
-                .exists();
-        if (!brandExists) {
-            BrandOwnerEntity brandOwnerEntity = new BrandOwnerEntity();
-            brandOwnerEntity.setBrandCode(trimmedBrandCode);
-            brandOwnerEntity.setOwnerName(trimmedOwnerName);
-            try {
-                brandOwnerService.save(brandOwnerEntity);
-            } catch (DuplicateKeyException ignore) {
-            }
-        }
+        String trimmedOwnerName = StringUtils.hasText(ownerName) ? ownerName.trim() : null;
 
         boolean exists = lambdaQuery().eq(UserEntity::getAccount, account).exists();
         if (exists) {
