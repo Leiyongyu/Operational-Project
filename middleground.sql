@@ -11,7 +11,7 @@
  Target Server Version : 90700 (9.7.0)
  File Encoding         : 65001
 
- Date: 10/06/2026 21:26:21
+ Date: 11/06/2026 16:45:40
 */
 
 SET NAMES utf8mb4;
@@ -31,7 +31,7 @@ CREATE TABLE `brand_owner`  (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_brand_code`(`brand_code` ASC) USING BTREE,
   INDEX `idx_owner_name`(`owner_name` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 34 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '品牌负责人表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 35 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '品牌负责人表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for daily_price_tracking_cache
@@ -101,7 +101,7 @@ CREATE TABLE `ebay_product_dedup`  (
   `return_rate` decimal(10, 4) NULL DEFAULT NULL COMMENT '退货率',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_site_sku`(`site` ASC, `sku` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 4913 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'ebay商品去重表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 7447 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'ebay商品去重表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for ebay_product_listing
@@ -251,7 +251,7 @@ CREATE TABLE `goodcang_product_info`  (
   `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `middle_code`(`sku_middle` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 2236 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 2244 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for goodcang_warehouse
@@ -298,7 +298,7 @@ CREATE TABLE `inventory_overview`  (
   `purchase_pending_delivery` int NULL DEFAULT 0 COMMENT '采购待交付',
   `local_sellable` int NULL DEFAULT 0 COMMENT '成都可售',
   `local_onway` int NULL DEFAULT 0 COMMENT '成都在途',
-  `purchase_plan` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '采购计划',
+  `purchase_plan` int NULL DEFAULT 0 COMMENT '采购计划',
   `lock_num` int NULL DEFAULT 0 COMMENT '待出库',
   `total_inventory` int NULL DEFAULT 0 COMMENT '总库存',
   `last7_days_sales` int NULL DEFAULT 0 COMMENT '近7天销量',
@@ -317,7 +317,7 @@ CREATE TABLE `inventory_overview`  (
   `updated_at` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_site_sku`(`warehouse_names` ASC, `sku` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 24049 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '库存总览预计算表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 36398 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '库存总览预计算表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for lowest_price_record
@@ -354,11 +354,12 @@ CREATE TABLE `operation_log`  (
   `fail_count` int NULL DEFAULT NULL COMMENT '失败条数',
   `error_message` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '错误信息',
   `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP,
+  `details` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT '详细日志JSON',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `idx_api_path`(`api_path` ASC) USING BTREE,
   INDEX `idx_operator`(`operator` ASC) USING BTREE,
   INDEX `idx_create_time`(`create_time` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 20 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '拉取数据日志表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 35 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '拉取数据日志表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for profit_report
@@ -525,7 +526,7 @@ CREATE TABLE `team`  (
   UNIQUE INDEX `uk_leader_member`(`leader` ASC, `member` ASC) USING BTREE,
   INDEX `idx_leader`(`leader` ASC) USING BTREE,
   INDEX `idx_member`(`member` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 19 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '团队关系表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 23 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '团队关系表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for user
@@ -559,7 +560,7 @@ CREATE TABLE `user_column_config`  (
   `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_user_page`(`user_account` ASC, `page_key` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户列配置表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户列配置表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for warehouse
